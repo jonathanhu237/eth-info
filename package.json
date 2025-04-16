@@ -1,7 +1,7 @@
 {
   "name": "eth-info",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -25,5 +25,6 @@
     "typescript": "~5.7.2",
     "typescript-eslint": "^8.26.1",
     "vite": "^6.3.0"
-  }
+  },
+  "packageManager": "pnpm@10.8.1"
 }
