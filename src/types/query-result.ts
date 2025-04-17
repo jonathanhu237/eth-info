@@ -1,7 +1,7 @@
 export type MatchInfo = {
   matched_field: string;
   matched_value: string;
-  match_position: {
+  match_positions: {
     start: number;
     end: number;
   }[];
