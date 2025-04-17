@@ -14,6 +14,43 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
+// --- Ethers.js 相关导入 ---
+// 如果使用 ethers v6:
+import { keccak256 } from "ethers";
+// 如果使用 ethers v5:
+// import { keccak256 } from 'ethers/lib/utils';
+// --------------------------
+
+// 将地址转换为符合 EIP-55 校验和的大小写格式 (使用 ethers)
+const toChecksumAddress = (address: string): string => {
+  if (!/^(0x)?[0-9a-f]{40}$/i.test(address)) {
+    // 无效地址格式，返回原始值或抛出错误
+    console.warn(
+      "Invalid address format passed to toChecksumAddress:",
+      address
+    );
+    return address;
+  }
+
+  const addr = address.toLowerCase().replace("0x", "");
+  // ethers的keccak256需要作用于地址的UTF-8字节
+  // 使用 TextEncoder 将字符串转为 utf8 Uint8Array (浏览器兼容)
+  const addressBytes = new TextEncoder().encode(addr);
+  const hash = keccak256(addressBytes).replace("0x", ""); // 计算哈希并移除 '0x' 前缀
+
+  let checksumAddress = "0x";
+  for (let i = 0; i < addr.length; i++) {
+    // 如果哈希值对应位的数字 >= 8，则将地址对应位的字母大写
+    if (parseInt(hash[i], 16) >= 8) {
+      checksumAddress += addr[i].toUpperCase();
+    } else {
+      // 否则保持小写（已经是小写了）
+      checksumAddress += addr[i];
+    }
+  }
+  return checksumAddress;
+};
+
 // 定义文本片段的类型
 type TextSegment = {
   text: string;
@@ -289,96 +326,112 @@ export const SearchInput = () => {
   // --- 渲染函数 ---
 
   // 渲染交易列表项
-  const renderTransactionItem = (item: TransactionResultItem) => (
-    <li
-      key={item.id}
-      onClick={() => handleItemClick(item.hash)}
-      className="flex cursor-pointer select-none items-center rounded-sm px-4 py-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground transition-colors duration-100"
-    >
-      <div className="flex flex-col w-full overflow-hidden">
-        <span className="truncate font-mono text-sm">
-          {/* 高亮哈希 */}
-          <HighlightText
-            originalText={item.hash}
-            matchInfo={
-              item.match_info?.matched_field === "hash"
-                ? item.match_info
-                : undefined
-            }
-          />
-        </span>
-        <div className="flex justify-between text-xs text-muted-foreground">
-          <span className="truncate max-w-[45%]">
-            从:{" "}
+  const renderTransactionItem = (item: TransactionResultItem) => {
+    // 对 from 和 to 地址应用校验和
+    const checksumFrom = toChecksumAddress(item.from);
+    const checksumTo = toChecksumAddress(item.to);
+    return (
+      <li
+        key={item.id}
+        onClick={() => handleItemClick(item.hash)}
+        className="flex cursor-pointer select-none items-center rounded-sm px-4 py-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground transition-colors duration-100"
+      >
+        <div className="flex flex-col w-full overflow-hidden">
+          <span className="truncate font-mono text-sm">
+            {/* 高亮哈希 */}
             <HighlightText
-              originalText={item.from}
+              originalText={item.hash}
               matchInfo={
-                item.match_info?.matched_field === "from"
+                item.match_info?.matched_field === "hash"
                   ? item.match_info
                   : undefined
               }
             />
           </span>
-          <span className="truncate max-w-[45%]">
-            到:{" "}
-            <HighlightText
-              originalText={item.to}
-              matchInfo={
-                item.match_info?.matched_field === "to"
-                  ? item.match_info
-                  : undefined
-              }
-            />
-          </span>
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span className="truncate max-w-[45%]" title={checksumFrom}>
+              {" "}
+              {/* 添加 title 属性显示完整地址 */}
+              从:{" "}
+              <HighlightText
+                originalText={checksumFrom} // 使用校验和地址
+                matchInfo={
+                  item.match_info?.matched_field === "from"
+                    ? item.match_info
+                    : undefined
+                }
+              />
+            </span>
+            <span className="truncate max-w-[45%]" title={checksumTo}>
+              {" "}
+              {/* 添加 title 属性显示完整地址 */}
+              到:{" "}
+              <HighlightText
+                originalText={checksumTo} // 使用校验和地址
+                matchInfo={
+                  item.match_info?.matched_field === "to"
+                    ? item.match_info
+                    : undefined
+                }
+              />
+            </span>
+          </div>
         </div>
-      </div>
-    </li>
-  );
+      </li>
+    );
+  };
 
   // 渲染地址列表项
-  const renderAddressItem = (item: AddressResultItem) => (
-    <li
-      key={item.id}
-      onClick={() => handleItemClick(item.address)}
-      className="flex cursor-pointer select-none items-center rounded-sm px-4 py-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground transition-colors duration-100"
-    >
-      <span className="truncate font-mono text-sm">
-        {/* 高亮地址 */}
-        <HighlightText
-          originalText={item.address}
-          matchInfo={
-            item.match_info?.matched_field === "address"
-              ? item.match_info
-              : undefined
-          }
-        />
-      </span>
-      {/* 如果有名称，显示并高亮名称 */}
-      {item.name && (
-        <span className="ml-2 text-muted-foreground text-xs truncate">
-          (
+  const renderAddressItem = (item: AddressResultItem) => {
+    // 对地址应用校验和
+    const checksumAddress = toChecksumAddress(item.address);
+    return (
+      <li
+        key={item.id}
+        onClick={() => handleItemClick(checksumAddress)} // 点击填充校验和地址
+        className="flex cursor-pointer select-none items-center rounded-sm px-4 py-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground transition-colors duration-100"
+      >
+        <span className="truncate font-mono text-sm" title={checksumAddress}>
+          {" "}
+          {/* 添加 title 属性 */}
           <HighlightText
-            originalText={item.name}
+            originalText={checksumAddress} // 使用校验和地址
             matchInfo={
-              item.match_info?.matched_field === "name"
+              item.match_info?.matched_field === "address"
                 ? item.match_info
                 : undefined
             }
           />
-          )
         </span>
-      )}
-    </li>
-  );
+        {/* 如果有名称，显示并高亮名称 */}
+        {item.name && (
+          <span className="ml-2 text-muted-foreground text-xs truncate">
+            (
+            <HighlightText
+              originalText={item.name}
+              matchInfo={
+                item.match_info?.matched_field === "name"
+                  ? item.match_info
+                  : undefined
+              }
+            />
+            )
+          </span>
+        )}
+      </li>
+    );
+  };
 
   // 渲染标签列表项
   const renderLabelItem = (item: LabelResultItem) => {
     // 确定要显示的文本 (优先 display, 其次 name, 最后 label)
     const textToHighlight = item.display || item.name || item.label;
+    // 对地址应用校验和
+    const checksumAddress = toChecksumAddress(item.address);
     return (
       <li
         key={item.id}
-        onClick={() => handleItemClick(item.address)} // 点击标签项填充其关联地址
+        onClick={() => handleItemClick(checksumAddress)} // 点击标签项填充其关联地址
         className="flex cursor-pointer select-none items-center rounded-sm px-4 py-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground transition-colors duration-100"
       >
         <div className="flex flex-col w-full overflow-hidden">
@@ -389,9 +442,14 @@ export const SearchInput = () => {
               matchInfo={item.match_info} // 让 HighlightText 根据 match_info 内容决定高亮方式
             />
           </span>
-          {/* 显示标签关联的地址 */}
-          <span className="truncate font-mono text-xs text-muted-foreground">
-            {item.address}
+          {/* 显示校验和地址 */}{" "}
+          <span
+            className="truncate font-mono text-xs text-muted-foreground"
+            title={checksumAddress}
+          >
+            {" "}
+            {/* 添加 title 属性 */}
+            {checksumAddress}
           </span>
         </div>
       </li>
@@ -400,6 +458,8 @@ export const SearchInput = () => {
 
   // 渲染区块列表项
   const renderBlockItem = (item: BlockResultItem) => {
+    // 对矿工地址应用校验和
+    const checksumMiner = toChecksumAddress(item.miner);
     return (
       <li
         key={item.id}
@@ -418,9 +478,14 @@ export const SearchInput = () => {
               }
             />
           </span>
-          {/* 显示矿工地址 */}
-          <span className="truncate font-mono text-xs text-muted-foreground">
-            矿工: {item.miner}
+          {/* 显示校验和矿工地址 */}
+          <span
+            className="truncate font-mono text-xs text-muted-foreground"
+            title={checksumMiner}
+          >
+            {" "}
+            {/* 添加 title 属性 */}
+            矿工: {checksumMiner}
           </span>
         </div>
       </li>
