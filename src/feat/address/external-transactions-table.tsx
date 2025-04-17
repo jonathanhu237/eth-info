@@ -243,6 +243,7 @@ export function ExternalTransactionsTable({
               size="sm"
               onClick={() => onPageChange(currentPage - 1)}
               disabled={currentPage <= 1}
+              className="cursor-pointer"
             >
               上一页
             </Button>
@@ -251,6 +252,7 @@ export function ExternalTransactionsTable({
               size="sm"
               onClick={() => onPageChange(currentPage + 1)}
               disabled={currentPage >= pageCount}
+              className="cursor-pointer"
             >
               下一页
             </Button>
