@@ -6,10 +6,6 @@ export const apiClient = axios.create({
   baseURL: "/api",
 });
 
-export const getRandomAddressInfo = async () => {
-  return apiClient.get<AddressInfo>("/random/address").then((res) => res.data);
-};
-
 export type SearchParams = {
   query?: string;
   limit: number;
@@ -22,4 +18,10 @@ export const search = async ({ query, limit }: SearchParams) => {
       limit,
     },
   });
+};
+
+export const getAddressInfo = async (address: string) => {
+  return apiClient
+    .get<AddressInfo>(`/address/${address}`)
+    .then((res) => res.data);
 };

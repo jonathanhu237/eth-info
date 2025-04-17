@@ -10,6 +10,7 @@ import {
 } from "@/types/query-result";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HighlightText } from "./highlight-text"; // 导入高亮组件
+import { useNavigate } from "@tanstack/react-router"; // 导入 useNavigate
 
 interface SearchResultsListProps {
   isLoading: boolean;
@@ -22,14 +23,14 @@ interface SearchResultsListProps {
 // 将渲染函数移到这里
 const renderTransactionItem = (
   item: TransactionResultItem,
-  onClick: (value: string) => void
+  onClick: (value: string, type: string) => void
 ) => {
   const checksumFrom = toChecksumAddress(item.from);
   const checksumTo = toChecksumAddress(item.to);
   return (
     <li
       key={item.id}
-      onClick={() => onClick(item.hash)}
+      onClick={() => onClick(item.hash, item.type)}
       className="flex cursor-pointer select-none items-center rounded-sm px-4 py-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground transition-colors duration-100"
     >
       <div className="flex flex-col w-full overflow-hidden">
@@ -74,13 +75,13 @@ const renderTransactionItem = (
 
 const renderAddressItem = (
   item: AddressResultItem,
-  onClick: (value: string) => void
+  onClick: (value: string, type: string) => void
 ) => {
   const checksumAddress = toChecksumAddress(item.address);
   return (
     <li
       key={item.id}
-      onClick={() => onClick(checksumAddress)}
+      onClick={() => onClick(checksumAddress, item.type)}
       className="flex cursor-pointer select-none items-center rounded-sm px-4 py-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground transition-colors duration-100"
     >
       <span className="truncate font-mono text-sm" title={checksumAddress}>
@@ -113,14 +114,14 @@ const renderAddressItem = (
 
 const renderLabelItem = (
   item: LabelResultItem,
-  onClick: (value: string) => void
+  onClick: (value: string, type: string) => void
 ) => {
   const textToHighlight = item.display || item.name || item.label;
   const checksumAddress = toChecksumAddress(item.address);
   return (
     <li
       key={item.id}
-      onClick={() => onClick(checksumAddress)}
+      onClick={() => onClick(checksumAddress, item.type)}
       className="flex cursor-pointer select-none items-center rounded-sm px-4 py-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground transition-colors duration-100"
     >
       <div className="flex flex-col w-full overflow-hidden">
@@ -143,13 +144,13 @@ const renderLabelItem = (
 
 const renderBlockItem = (
   item: BlockResultItem,
-  onClick: (value: string) => void
+  onClick: (value: string, type: string) => void
 ) => {
   const checksumMiner = toChecksumAddress(item.miner);
   return (
     <li
       key={item.id}
-      onClick={() => onClick(item.number.toString())}
+      onClick={() => onClick(item.number.toString(), item.type)}
       className="flex cursor-pointer select-none items-center rounded-sm px-4 py-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground transition-colors duration-100"
     >
       <div className="flex flex-col w-full overflow-hidden">
@@ -177,7 +178,7 @@ const renderBlockItem = (
 
 const renderFallbackItem = (
   item: FallbackResultItem,
-  onClick: (value: string) => void
+  onClick: (value: string, type: string) => void
 ) => {
   switch (item.type) {
     case "transaction":
@@ -195,7 +196,7 @@ const renderFallbackItem = (
 
 const renderRecommendations = (
   items: AddressResultItem[],
-  onClick: (value: string) => void
+  onClick: (value: string, type: string) => void
 ) => {
   if (!items || items.length === 0) return null;
   return (
@@ -215,6 +216,7 @@ export const SearchResultsList = ({
   debouncedValue,
   onItemClick,
 }: SearchResultsListProps) => {
+  const navigate = useNavigate(); // 获取导航函数
   const statusCode = queryResult?.status_code;
   const results = queryResult?.results;
   const recommendations = results?.recommendations;
@@ -223,6 +225,37 @@ export const SearchResultsList = ({
   const labels = results?.labels;
   const blocks = results?.blocks;
   const fallback = results?.fallback;
+
+  // 新的点击处理函数，包含导航逻辑
+  const handleNavigateAndClose = (value: string, type: string) => {
+    // 先调用父组件的回调，更新输入框并关闭列表
+    onItemClick(value);
+
+    // 根据类型进行导航
+    switch (type) {
+      case "address":
+      case "recommendation":
+        navigate({
+          to: "/address/$hash",
+          params: { hash: value }, // value 已经是 checksumAddress
+        });
+        break;
+      case "label": // 标签点击也导航到地址页
+        // TODO: 添加标签页导航
+        console.log("Navigate to label page for:", value);
+        break;
+      case "transaction":
+        // TODO: 添加交易页导航
+        console.log("Navigate to transaction page for:", value);
+        break;
+      case "block":
+        // TODO: 添加区块页导航
+        console.log("Navigate to block page for:", value);
+        break;
+      default:
+        break;
+    }
+  };
 
   return (
     <div
@@ -246,7 +279,7 @@ export const SearchResultsList = ({
             statusCode === 9999) &&
           recommendations &&
           recommendations.length > 0 ? (
-            renderRecommendations(recommendations, onItemClick)
+            renderRecommendations(recommendations, handleNavigateAndClose)
           ) : ((debouncedValue === "" && statusCode === 1000) ||
               statusCode === 9999) &&
             (!recommendations || recommendations.length === 0) ? (
@@ -265,7 +298,7 @@ export const SearchResultsList = ({
                   </p>
                   <ul>
                     {transactions.map((item) =>
-                      renderTransactionItem(item, onItemClick)
+                      renderTransactionItem(item, handleNavigateAndClose)
                     )}
                   </ul>
                 </div>
@@ -277,7 +310,7 @@ export const SearchResultsList = ({
                   </p>
                   <ul>
                     {addresses.map((item) =>
-                      renderAddressItem(item, onItemClick)
+                      renderAddressItem(item, handleNavigateAndClose)
                     )}
                   </ul>
                 </div>
@@ -288,7 +321,9 @@ export const SearchResultsList = ({
                     标签
                   </p>
                   <ul>
-                    {labels.map((item) => renderLabelItem(item, onItemClick))}
+                    {labels.map((item) =>
+                      renderLabelItem(item, handleNavigateAndClose)
+                    )}
                   </ul>
                 </div>
               )}
@@ -298,7 +333,9 @@ export const SearchResultsList = ({
                     区块
                   </p>
                   <ul>
-                    {blocks.map((item) => renderBlockItem(item, onItemClick))}
+                    {blocks.map((item) =>
+                      renderBlockItem(item, handleNavigateAndClose)
+                    )}
                   </ul>
                 </div>
               )}
@@ -323,7 +360,7 @@ export const SearchResultsList = ({
                   </p>
                   <ul>
                     {fallback.map((item) =>
-                      renderFallbackItem(item, onItemClick)
+                      renderFallbackItem(item, handleNavigateAndClose)
                     )}
                   </ul>
                 </div>

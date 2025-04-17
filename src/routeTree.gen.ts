@@ -11,17 +11,12 @@
 // Import Routes
 
 import { Route as rootRoute } from './routes/__root'
-import { Route as RandomAddressImport } from './routes/random-address'
 import { Route as AboutImport } from './routes/about'
+import { Route as DetailsLayoutImport } from './routes/_details-layout'
 import { Route as IndexImport } from './routes/index'
+import { Route as DetailsLayoutAddressHashImport } from './routes/_details-layout/address.$hash'
 
 // Create/Update Routes
-
-const RandomAddressRoute = RandomAddressImport.update({
-  id: '/random-address',
-  path: '/random-address',
-  getParentRoute: () => rootRoute,
-} as any)
 
 const AboutRoute = AboutImport.update({
   id: '/about',
@@ -29,10 +24,21 @@ const AboutRoute = AboutImport.update({
   getParentRoute: () => rootRoute,
 } as any)
 
+const DetailsLayoutRoute = DetailsLayoutImport.update({
+  id: '/_details-layout',
+  getParentRoute: () => rootRoute,
+} as any)
+
 const IndexRoute = IndexImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRoute,
+} as any)
+
+const DetailsLayoutAddressHashRoute = DetailsLayoutAddressHashImport.update({
+  id: '/address/$hash',
+  path: '/address/$hash',
+  getParentRoute: () => DetailsLayoutRoute,
 } as any)
 
 // Populate the FileRoutesByPath interface
@@ -46,6 +52,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexImport
       parentRoute: typeof rootRoute
     }
+    '/_details-layout': {
+      id: '/_details-layout'
+      path: ''
+      fullPath: ''
+      preLoaderRoute: typeof DetailsLayoutImport
+      parentRoute: typeof rootRoute
+    }
     '/about': {
       id: '/about'
       path: '/about'
@@ -53,56 +66,76 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AboutImport
       parentRoute: typeof rootRoute
     }
-    '/random-address': {
-      id: '/random-address'
-      path: '/random-address'
-      fullPath: '/random-address'
-      preLoaderRoute: typeof RandomAddressImport
-      parentRoute: typeof rootRoute
+    '/_details-layout/address/$hash': {
+      id: '/_details-layout/address/$hash'
+      path: '/address/$hash'
+      fullPath: '/address/$hash'
+      preLoaderRoute: typeof DetailsLayoutAddressHashImport
+      parentRoute: typeof DetailsLayoutImport
     }
   }
 }
 
 // Create and export the route tree
 
+interface DetailsLayoutRouteChildren {
+  DetailsLayoutAddressHashRoute: typeof DetailsLayoutAddressHashRoute
+}
+
+const DetailsLayoutRouteChildren: DetailsLayoutRouteChildren = {
+  DetailsLayoutAddressHashRoute: DetailsLayoutAddressHashRoute,
+}
+
+const DetailsLayoutRouteWithChildren = DetailsLayoutRoute._addFileChildren(
+  DetailsLayoutRouteChildren,
+)
+
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '': typeof DetailsLayoutRouteWithChildren
   '/about': typeof AboutRoute
-  '/random-address': typeof RandomAddressRoute
+  '/address/$hash': typeof DetailsLayoutAddressHashRoute
 }
 
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '': typeof DetailsLayoutRouteWithChildren
   '/about': typeof AboutRoute
-  '/random-address': typeof RandomAddressRoute
+  '/address/$hash': typeof DetailsLayoutAddressHashRoute
 }
 
 export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
+  '/_details-layout': typeof DetailsLayoutRouteWithChildren
   '/about': typeof AboutRoute
-  '/random-address': typeof RandomAddressRoute
+  '/_details-layout/address/$hash': typeof DetailsLayoutAddressHashRoute
 }
 
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/about' | '/random-address'
+  fullPaths: '/' | '' | '/about' | '/address/$hash'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/about' | '/random-address'
-  id: '__root__' | '/' | '/about' | '/random-address'
+  to: '/' | '' | '/about' | '/address/$hash'
+  id:
+    | '__root__'
+    | '/'
+    | '/_details-layout'
+    | '/about'
+    | '/_details-layout/address/$hash'
   fileRoutesById: FileRoutesById
 }
 
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DetailsLayoutRoute: typeof DetailsLayoutRouteWithChildren
   AboutRoute: typeof AboutRoute
-  RandomAddressRoute: typeof RandomAddressRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DetailsLayoutRoute: DetailsLayoutRouteWithChildren,
   AboutRoute: AboutRoute,
-  RandomAddressRoute: RandomAddressRoute,
 }
 
 export const routeTree = rootRoute
@@ -116,18 +149,25 @@ export const routeTree = rootRoute
       "filePath": "__root.tsx",
       "children": [
         "/",
-        "/about",
-        "/random-address"
+        "/_details-layout",
+        "/about"
       ]
     },
     "/": {
       "filePath": "index.tsx"
     },
+    "/_details-layout": {
+      "filePath": "_details-layout.tsx",
+      "children": [
+        "/_details-layout/address/$hash"
+      ]
+    },
     "/about": {
       "filePath": "about.tsx"
     },
-    "/random-address": {
-      "filePath": "random-address.tsx"
+    "/_details-layout/address/$hash": {
+      "filePath": "_details-layout/address.$hash.tsx",
+      "parent": "/_details-layout"
     }
   }
 }
