@@ -45,7 +45,7 @@ export const SearchInput = () => {
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, []);
+  }, [queryClient]);
 
   return (
     <div ref={containerRef} className="relative">
