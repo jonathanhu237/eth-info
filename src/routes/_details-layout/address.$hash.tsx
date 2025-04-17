@@ -66,13 +66,9 @@ function AddressDetailsComponent() {
   return (
     <div className="space-y-4">
       <AddressHeader addressInfo={addressInfo} />
-      <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <AddressOverview addressInfo={addressInfo} />
-        </div>
-        <div className="lg:col-span-1">
-          <AddressMoreInfo addressInfo={addressInfo} />
-        </div>
+      <div className="grid gap-4 grid-cols-2">
+        <AddressOverview addressInfo={addressInfo} />
+        <AddressMoreInfo addressInfo={addressInfo} />
       </div>
       <ExternalTransactionsTable
         data={transactionsData?.data?.transactions}
