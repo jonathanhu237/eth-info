@@ -67,6 +67,12 @@ export type BlockResultItem = {
   match_info: MatchInfo;
 };
 
+export type FallbackResultItem =
+  | TransactionResultItem
+  | AddressResultItem
+  | LabelResultItem
+  | BlockResultItem;
+
 export type QueryResult = {
   query: string;
   status_code: number;
@@ -78,11 +84,6 @@ export type QueryResult = {
     addresses: AddressResultItem[];
     labels: LabelResultItem[];
     blocks: BlockResultItem[];
-    fallback: (
-      | TransactionResultItem
-      | AddressResultItem
-      | LabelResultItem
-      | BlockResultItem
-    )[];
+    fallback: FallbackResultItem[];
   };
 };
