@@ -48,9 +48,12 @@ export const SearchInput = () => {
   const handleFocus = () => setIsFocused(true);
 
   // 处理点击搜索结果项 (传递给列表组件)
-  const handleItemClick = (value: string) => {
-    setInputValue(value);
-    setDebouncedValue(value);
+  const handleItemClick = () => {
+    // 清空输入框的值
+    setInputValue("");
+    setDebouncedValue("");
+
+    // 关闭下拉列表
     setIsFocused(false);
   };
 

@@ -12,8 +12,7 @@ const formatNumber = (num: number) => {
 };
 
 export const AddressMoreInfo = ({ addressInfo }: Props) => {
-  const notableIdentifier =
-    addressInfo.name || addressInfo.symbol || addressInfo.label;
+  const displayName = addressInfo.display_name;
 
   return (
     <Card>
@@ -23,10 +22,10 @@ export const AddressMoreInfo = ({ addressInfo }: Props) => {
 
       <CardContent className="space-y-4">
         {/* 显示名称/符号/标签（如果存在） */}
-        {notableIdentifier && (
+        {displayName && (
           <div className="flex justify-between items-center">
-            <span className="text-muted-foreground">名称/标签:</span>
-            <span className="font-semibold break-all">{notableIdentifier}</span>
+            <span className="text-muted-foreground">名称:</span>
+            <span className="font-semibold break-all">{displayName}</span>
           </div>
         )}
 
@@ -45,9 +44,9 @@ export const AddressMoreInfo = ({ addressInfo }: Props) => {
         </div>
 
         {/* 相关标签列表 */}
-        {addressInfo.labels && addressInfo.labels.length > 0 && (
-          <div className="flex justify-between items-center">
-            <span className="text-muted-foreground block mb-2">相关标签:</span>
+        <div className="flex justify-between items-center">
+          <span className="text-muted-foreground block mb-2">相关标签:</span>
+          {addressInfo.labels && addressInfo.labels.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {addressInfo.labels.map((label, index) => (
                 <Badge key={index} variant="secondary">
@@ -55,8 +54,10 @@ export const AddressMoreInfo = ({ addressInfo }: Props) => {
                 </Badge>
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <span className="text-muted-foreground mb-2">无</span>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

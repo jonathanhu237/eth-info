@@ -16,4 +16,6 @@ export type AddressInfo = {
     nameTag: string;
     tag_type: string;
   }[];
+  display_name: string;
+  address_with_0x: string;
 };
