@@ -1,5 +1,8 @@
 import { AddressInfo } from "@/types/address-info";
-import { ExternalTxQuery } from "@/types/external-tx-query";
+import {
+  AddressExternalTxQuery,
+  AddressInternalTxQuery,
+} from "@/types/address-tx-query";
 import { QueryResult } from "@/types/query-result";
 import axios from "axios";
 
@@ -38,7 +41,29 @@ export const getExternalTx = async ({
   page,
   page_size,
 }: GetExternalTxParams) => {
-  return apiClient.get<ExternalTxQuery>(`/address/${address}/transactions`, {
+  return apiClient.get<AddressExternalTxQuery>(
+    `/address/${address}/transactions`,
+    {
+      params: {
+        page,
+        page_size,
+      },
+    }
+  );
+};
+
+export type GetInternalTxParams = {
+  address: string;
+  page: number;
+  page_size: number;
+};
+
+export const getInternalTx = async ({
+  address,
+  page,
+  page_size,
+}: GetInternalTxParams) => {
+  return apiClient.get<AddressInternalTxQuery>(`/address/${address}/internal`, {
     params: {
       page,
       page_size,

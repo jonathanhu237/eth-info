@@ -5,6 +5,8 @@ import {
   getAddressInfo,
   GetExternalTxParams,
   getExternalTx,
+  GetInternalTxParams,
+  getInternalTx,
 } from "./api";
 
 export const searchQueryOptions = ({ query, limit }: SearchParams) => {
@@ -21,7 +23,7 @@ export const addressInfoQueryOptions = (address: string) => {
   });
 };
 
-export const externalTxQueryOptions = ({
+export const addressExternalTxQueryOptions = ({
   address,
   page,
   page_size,
@@ -29,5 +31,16 @@ export const externalTxQueryOptions = ({
   return queryOptions({
     queryKey: ["external-tx", address, page, page_size],
     queryFn: () => getExternalTx({ address, page, page_size }),
+  });
+};
+
+export const addressInternalTxQueryOptions = ({
+  address,
+  page,
+  page_size,
+}: GetInternalTxParams) => {
+  return queryOptions({
+    queryKey: ["internal-tx", address, page, page_size],
+    queryFn: () => getInternalTx({ address, page, page_size }),
   });
 };
