@@ -10,7 +10,7 @@ function RouteComponent() {
   return (
     <div className="flex flex-col min-h-screen">
       {/* 顶部栏 */}
-      <header className="sticky top-0 z-50 w-full border-b">
+      <header className="sticky top-0 z-50 w-full border-b bg-background">
         {/* 内部 div 应用和 main 一样的宽度限制、居中和内边距 */}
         <div className="w-full max-w-7xl mx-auto px-4 flex h-14 items-center justify-end gap-4">
           {/* 搜索框，调整最大宽度 */}
