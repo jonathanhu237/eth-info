@@ -4,18 +4,19 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AddressHeader } from "@/feat/address/address-header";
 import { AddressOverview } from "@/feat/address/address-overview";
 import { AddressMoreInfo } from "@/feat/address/address-more-info";
+import { ExternalTransactionsTable } from "@/feat/address/external-transactions-table";
 
 export const Route = createFileRoute("/_details-layout/address/$hash")({
   component: AddressDetailsComponent,
   loader: ({ context: { queryClient }, params: { hash } }) => {
-    return queryClient.ensureQueryData(addressInfoQueryOptions(hash));
+    queryClient.ensureQueryData(addressInfoQueryOptions(hash));
+    return null;
   },
 });
 
 function AddressDetailsComponent() {
-  const { data: addressInfo } = useSuspenseQuery(
-    addressInfoQueryOptions(Route.useParams().hash)
-  );
+  const { hash } = Route.useParams();
+  const { data: addressInfo } = useSuspenseQuery(addressInfoQueryOptions(hash));
 
   return (
     <div className="space-y-4">
@@ -24,6 +25,7 @@ function AddressDetailsComponent() {
         <AddressOverview addressInfo={addressInfo} />
         <AddressMoreInfo addressInfo={addressInfo} />
       </div>
+      <ExternalTransactionsTable address={hash} />
     </div>
   );
 }

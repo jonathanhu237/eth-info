@@ -14,6 +14,8 @@ import { Route as rootRoute } from './routes/__root'
 import { Route as AboutImport } from './routes/about'
 import { Route as DetailsLayoutImport } from './routes/_details-layout'
 import { Route as IndexImport } from './routes/index'
+import { Route as DetailsLayoutTxHashImport } from './routes/_details-layout/tx.$hash'
+import { Route as DetailsLayoutBlockBlockNumberImport } from './routes/_details-layout/block.$blockNumber'
 import { Route as DetailsLayoutAddressHashImport } from './routes/_details-layout/address.$hash'
 
 // Create/Update Routes
@@ -34,6 +36,19 @@ const IndexRoute = IndexImport.update({
   path: '/',
   getParentRoute: () => rootRoute,
 } as any)
+
+const DetailsLayoutTxHashRoute = DetailsLayoutTxHashImport.update({
+  id: '/tx/$hash',
+  path: '/tx/$hash',
+  getParentRoute: () => DetailsLayoutRoute,
+} as any)
+
+const DetailsLayoutBlockBlockNumberRoute =
+  DetailsLayoutBlockBlockNumberImport.update({
+    id: '/block/$blockNumber',
+    path: '/block/$blockNumber',
+    getParentRoute: () => DetailsLayoutRoute,
+  } as any)
 
 const DetailsLayoutAddressHashRoute = DetailsLayoutAddressHashImport.update({
   id: '/address/$hash',
@@ -73,6 +88,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DetailsLayoutAddressHashImport
       parentRoute: typeof DetailsLayoutImport
     }
+    '/_details-layout/block/$blockNumber': {
+      id: '/_details-layout/block/$blockNumber'
+      path: '/block/$blockNumber'
+      fullPath: '/block/$blockNumber'
+      preLoaderRoute: typeof DetailsLayoutBlockBlockNumberImport
+      parentRoute: typeof DetailsLayoutImport
+    }
+    '/_details-layout/tx/$hash': {
+      id: '/_details-layout/tx/$hash'
+      path: '/tx/$hash'
+      fullPath: '/tx/$hash'
+      preLoaderRoute: typeof DetailsLayoutTxHashImport
+      parentRoute: typeof DetailsLayoutImport
+    }
   }
 }
 
@@ -80,10 +109,14 @@ declare module '@tanstack/react-router' {
 
 interface DetailsLayoutRouteChildren {
   DetailsLayoutAddressHashRoute: typeof DetailsLayoutAddressHashRoute
+  DetailsLayoutBlockBlockNumberRoute: typeof DetailsLayoutBlockBlockNumberRoute
+  DetailsLayoutTxHashRoute: typeof DetailsLayoutTxHashRoute
 }
 
 const DetailsLayoutRouteChildren: DetailsLayoutRouteChildren = {
   DetailsLayoutAddressHashRoute: DetailsLayoutAddressHashRoute,
+  DetailsLayoutBlockBlockNumberRoute: DetailsLayoutBlockBlockNumberRoute,
+  DetailsLayoutTxHashRoute: DetailsLayoutTxHashRoute,
 }
 
 const DetailsLayoutRouteWithChildren = DetailsLayoutRoute._addFileChildren(
@@ -95,6 +128,8 @@ export interface FileRoutesByFullPath {
   '': typeof DetailsLayoutRouteWithChildren
   '/about': typeof AboutRoute
   '/address/$hash': typeof DetailsLayoutAddressHashRoute
+  '/block/$blockNumber': typeof DetailsLayoutBlockBlockNumberRoute
+  '/tx/$hash': typeof DetailsLayoutTxHashRoute
 }
 
 export interface FileRoutesByTo {
@@ -102,6 +137,8 @@ export interface FileRoutesByTo {
   '': typeof DetailsLayoutRouteWithChildren
   '/about': typeof AboutRoute
   '/address/$hash': typeof DetailsLayoutAddressHashRoute
+  '/block/$blockNumber': typeof DetailsLayoutBlockBlockNumberRoute
+  '/tx/$hash': typeof DetailsLayoutTxHashRoute
 }
 
 export interface FileRoutesById {
@@ -110,19 +147,35 @@ export interface FileRoutesById {
   '/_details-layout': typeof DetailsLayoutRouteWithChildren
   '/about': typeof AboutRoute
   '/_details-layout/address/$hash': typeof DetailsLayoutAddressHashRoute
+  '/_details-layout/block/$blockNumber': typeof DetailsLayoutBlockBlockNumberRoute
+  '/_details-layout/tx/$hash': typeof DetailsLayoutTxHashRoute
 }
 
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '' | '/about' | '/address/$hash'
+  fullPaths:
+    | '/'
+    | ''
+    | '/about'
+    | '/address/$hash'
+    | '/block/$blockNumber'
+    | '/tx/$hash'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '' | '/about' | '/address/$hash'
+  to:
+    | '/'
+    | ''
+    | '/about'
+    | '/address/$hash'
+    | '/block/$blockNumber'
+    | '/tx/$hash'
   id:
     | '__root__'
     | '/'
     | '/_details-layout'
     | '/about'
     | '/_details-layout/address/$hash'
+    | '/_details-layout/block/$blockNumber'
+    | '/_details-layout/tx/$hash'
   fileRoutesById: FileRoutesById
 }
 
@@ -159,7 +212,9 @@ export const routeTree = rootRoute
     "/_details-layout": {
       "filePath": "_details-layout.tsx",
       "children": [
-        "/_details-layout/address/$hash"
+        "/_details-layout/address/$hash",
+        "/_details-layout/block/$blockNumber",
+        "/_details-layout/tx/$hash"
       ]
     },
     "/about": {
@@ -167,6 +222,14 @@ export const routeTree = rootRoute
     },
     "/_details-layout/address/$hash": {
       "filePath": "_details-layout/address.$hash.tsx",
+      "parent": "/_details-layout"
+    },
+    "/_details-layout/block/$blockNumber": {
+      "filePath": "_details-layout/block.$blockNumber.tsx",
+      "parent": "/_details-layout"
+    },
+    "/_details-layout/tx/$hash": {
+      "filePath": "_details-layout/tx.$hash.tsx",
       "parent": "/_details-layout"
     }
   }
