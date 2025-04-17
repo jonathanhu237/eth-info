@@ -235,14 +235,11 @@ export const SearchResultsList = ({
     switch (type) {
       case "address":
       case "recommendation":
+      case "label":
         navigate({
           to: "/address/$hash",
           params: { hash: value }, // value 已经是 checksumAddress
         });
-        break;
-      case "label": // 标签点击也导航到地址页
-        // TODO: 添加标签页导航
-        console.log("Navigate to label page for:", value);
         break;
       case "transaction":
         // TODO: 添加交易页导航
