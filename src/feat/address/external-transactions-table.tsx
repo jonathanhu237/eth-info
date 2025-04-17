@@ -1,14 +1,13 @@
-import * as React from "react";
 import {
   ColumnDef,
   flexRender,
   getCoreRowModel,
   getPaginationRowModel,
   useReactTable,
-  PaginationState,
   CellContext,
+  Row,
+  HeaderGroup,
 } from "@tanstack/react-table";
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 
 import {
@@ -20,8 +19,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { externalTxQueryOptions } from "@/lib/query-options";
 import { ExternalTxQuery } from "@/types/external-tx-query";
 import { toChecksumAddress } from "@/lib/utils";
 import { formatDistanceToNowStrict } from "date-fns";
@@ -33,7 +30,12 @@ type Transaction = ExternalTxQuery["transactions"][0];
 
 // --- 组件 Props ---
 interface ExternalTransactionsTableProps {
-  address: string;
+  data?: Transaction[];
+  pageCount: number;
+  currentPage: number;
+  pageSize: number;
+  onPageChange: (newPage: number) => void;
+  totalTransactions: number;
 }
 
 // --- 列定义 ---
@@ -50,7 +52,7 @@ const columns: ColumnDef<Transaction>[] = [
         <Link
           to={"/tx/$hash"}
           params={{ hash }}
-          className="text-primary hover:underline font-mono truncate max-w-xs block"
+          className="text-primary hover:underline font-mono truncate block"
         >
           {truncatedHash}
         </Link>
@@ -104,7 +106,7 @@ const columns: ColumnDef<Transaction>[] = [
         <Link
           to={"/address/$hash"}
           params={{ hash: checksumAddress }}
-          className="text-primary hover:underline font-mono truncate max-w-xs block"
+          className="text-primary hover:underline font-mono truncate block"
         >
           {truncatedAddress}
         </Link>
@@ -128,7 +130,7 @@ const columns: ColumnDef<Transaction>[] = [
         <Link
           to={"/address/$hash"}
           params={{ hash: checksumAddress }}
-          className="text-primary hover:underline font-mono truncate max-w-xs block"
+          className="text-primary hover:underline font-mono truncate block"
         >
           {truncatedAddress}
         </Link>
@@ -153,34 +155,15 @@ const columns: ColumnDef<Transaction>[] = [
 
 // --- 主组件 ---
 export function ExternalTransactionsTable({
-  address,
+  data,
+  pageCount,
+  currentPage,
+  pageSize,
+  onPageChange,
+  totalTransactions,
 }: ExternalTransactionsTableProps) {
-  const [{ pageIndex, pageSize }, setPagination] =
-    React.useState<PaginationState>({
-      pageIndex: 0,
-      pageSize: 10,
-    });
-
-  const queryOptions = externalTxQueryOptions({
-    address,
-    page: pageIndex + 1,
-    page_size: pageSize,
-  });
-
-  const {
-    data: queryResult,
-    isLoading,
-    isError,
-    error,
-  } = useQuery(queryOptions);
-
-  const defaultData = React.useMemo(() => [], []);
-  const transactions = queryResult?.data?.transactions ?? defaultData;
-  const totalTransactions = queryResult?.data?.total ?? 0;
-
-  const pageCount = React.useMemo(() => {
-    return pageSize > 0 ? Math.ceil(totalTransactions / pageSize) : 0;
-  }, [totalTransactions, pageSize]);
+  const transactions = data ?? [];
+  const pageIndex = currentPage - 1;
 
   const table = useReactTable({
     data: transactions,
@@ -189,7 +172,6 @@ export function ExternalTransactionsTable({
     state: {
       pagination: { pageIndex, pageSize },
     },
-    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     manualPagination: true,
@@ -198,112 +180,77 @@ export function ExternalTransactionsTable({
 
   return (
     <div className="w-full space-y-4">
-      {isLoading && (
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                {columns.map((_, index) => (
-                  <TableHead key={`skeleton-head-${index}`}>
-                    <Skeleton className="h-5 w-full" />
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {[...Array(pageSize)].map((_, i) => (
-                <TableRow key={`skeleton-row-${i}`}>
-                  {columns.map((_, index) => (
-                    <TableCell key={`skeleton-cell-${i}-${index}`}>
-                      <Skeleton className="h-4 w-full" />
-                    </TableCell>
+      <div className="rounded-md border relative">
+        <Table>
+          <TableHeader>
+            {table
+              .getHeaderGroups()
+              .map((headerGroup: HeaderGroup<Transaction>) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <TableHead key={header.id}>
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                    </TableHead>
                   ))}
                 </TableRow>
               ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-
-      {isError && (
-        <div className="text-center text-destructive py-4">
-          加载交易失败: {error?.message || "未知错误"}
-        </div>
-      )}
-
-      {!isLoading && !isError && (
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => {
-                    return (
-                      <TableHead key={header.id}>
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
-                      </TableHead>
-                    );
-                  })}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows?.length ? (
+              table.getRowModel().rows.map((row: Row<Transaction>) => (
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && "selected"}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </TableCell>
+                  ))}
                 </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    data-state={row.getIsSelected() && "selected"}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={columns.length}
-                    className="h-24 text-center"
-                  >
-                    无结果。
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="h-24 text-center"
+                >
+                  {"无结果。"}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
       {pageCount > 0 && (
         <div className="flex items-center justify-between space-x-2 py-4">
           <div className="text-sm text-muted-foreground">
-            共 {totalTransactions} 条交易 | 第 {pageIndex + 1} 页 / 共{" "}
-            {pageCount} 页
+            共 {totalTransactions} 条交易 | 第 {currentPage} 页 / 共 {pageCount}{" "}
+            页
           </div>
           <div className="space-x-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => table.previousPage()}
-              disabled={isLoading || !table.getCanPreviousPage()}
+              onClick={() => onPageChange(currentPage - 1)}
+              disabled={currentPage <= 1}
             >
               上一页
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => table.nextPage()}
-              disabled={isLoading || !table.getCanNextPage()}
+              onClick={() => onPageChange(currentPage + 1)}
+              disabled={currentPage >= pageCount}
             >
               下一页
             </Button>

@@ -237,8 +237,9 @@ export const SearchResultsList = ({
       case "recommendation":
       case "label":
         navigate({
-          to: "/address/$hash",
-          params: { hash: value }, // value 已经是 checksumAddress
+          to: "/address/$hash", // 确保路径正确
+          params: { hash: value },
+          search: { page: 1, pageSize: 10 }, // 添加 search 参数，设置初始页码和大小
         });
         break;
       case "transaction":
