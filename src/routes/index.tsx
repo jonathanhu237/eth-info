@@ -1,5 +1,5 @@
-import { Button } from "@/components/ui/button";
 import { createFileRoute } from "@tanstack/react-router";
+import { SearchInput } from "@/feat/search/search-input";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -7,10 +7,12 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   return (
-    <div className="p-2">
-      <h3>Welcome Home!</h3>
-      <div className="flex flex-col items-center justify-center min-h-svh">
-        <Button>Click me</Button>
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="relative w-full max-w-xl px-4">
+        <h1 className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 text-3xl font-bold whitespace-nowrap">
+          ETH 信息查询
+        </h1>
+        <SearchInput />
       </div>
     </div>
   );
