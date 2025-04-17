@@ -14,18 +14,39 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 export const SearchInput = () => {
+  // 用户输入值
   const [inputValue, setInputValue] = useState("");
+  // 用于查询的值（经过防抖处理）
+  const [debouncedValue, setDebouncedValue] = useState("");
   const [isFocused, setIsFocused] = useState(false); // 搜索框是否聚焦
   const containerRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const limit = 5;
 
+  // 防抖处理：当 inputValue 变化时，延迟 300ms 后更新 debouncedValue
+  useEffect(() => {
+    // 对于空字符串，立即更新防抖值（用于立即显示推荐）
+    if (inputValue === "") {
+      setDebouncedValue("");
+      return;
+    }
+
+    // 否则，设置超时以延迟更新
+    const timer = setTimeout(() => {
+      setDebouncedValue(inputValue);
+    }, 300); // 300ms 的防抖延迟
+
+    // 清理函数：当输入再次改变时取消前一个计时器
+    return () => clearTimeout(timer);
+  }, [inputValue]);
+
+  // 查询使用防抖后的值
   const {
     data: queryResult,
     isPending,
     isError,
   } = useQuery({
-    ...searchQueryOptions({ query: inputValue, limit }),
+    ...searchQueryOptions({ query: debouncedValue, limit }),
     enabled: isFocused,
   });
 
@@ -46,6 +67,7 @@ export const SearchInput = () => {
   // 处理点击列表项
   const handleItemClick = (value: string) => {
     setInputValue(value);
+    setDebouncedValue(value); // 同时更新防抖值，避免多余请求
     setIsFocused(false);
   };
 
@@ -182,7 +204,7 @@ export const SearchInput = () => {
           ) : (
             <>
               {/* 空输入时显示推荐列表 (status_code: 1000 或 9999) */}
-              {inputValue === "" &&
+              {debouncedValue === "" &&
               recommendations &&
               recommendations.length > 0 ? (
                 <div>
@@ -195,7 +217,7 @@ export const SearchInput = () => {
                     )}
                   </ul>
                 </div>
-              ) : inputValue === "" &&
+              ) : debouncedValue === "" &&
                 (!recommendations || recommendations.length === 0) ? (
                 <p className="p-4 text-sm text-center text-muted-foreground">
                   暂无推荐。
@@ -203,7 +225,7 @@ export const SearchInput = () => {
               ) : null}
 
               {/* 直接前缀命中 (status_code: 1001) */}
-              {inputValue !== "" && statusCode === 1001 && (
+              {debouncedValue !== "" && statusCode === 1001 && (
                 <div className="divide-y">
                   {/* 交易结果 */}
                   {transactions && transactions.length > 0 && (
@@ -264,7 +286,7 @@ export const SearchInput = () => {
               )}
 
               {/* 前缀未命中，返回fallback (status_code: 1002) */}
-              {inputValue !== "" && statusCode === 1002 && (
+              {debouncedValue !== "" && statusCode === 1002 && (
                 <div>
                   {fallback && fallback.length > 0 ? (
                     <>
@@ -284,7 +306,7 @@ export const SearchInput = () => {
               )}
 
               {/* 其他状态码或无结果 */}
-              {inputValue !== "" &&
+              {debouncedValue !== "" &&
                 statusCode !== 1001 &&
                 statusCode !== 1002 && (
                   <p className="p-4 text-sm text-center text-muted-foreground">
