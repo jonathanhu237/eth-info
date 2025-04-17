@@ -3,6 +3,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { AddressHeader } from "@/feat/address/address-header";
 import { AddressOverview } from "@/feat/address/address-overview";
+import { AddressMoreInfo } from "@/feat/address/address-more-info";
 
 export const Route = createFileRoute("/_details-layout/address/$hash")({
   component: AddressDetailsComponent,
@@ -19,8 +20,9 @@ function AddressDetailsComponent() {
   return (
     <div className="space-y-4">
       <AddressHeader addressInfo={addressInfo} />
-      <div className="grid grid-cols-2">
+      <div className="grid gap-4 grid-cols-2">
         <AddressOverview addressInfo={addressInfo} />
+        <AddressMoreInfo addressInfo={addressInfo} />
       </div>
     </div>
   );
