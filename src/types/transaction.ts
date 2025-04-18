@@ -1,0 +1,22 @@
+export type Transaction = {
+  hash: string;
+  blockHash: string;
+  blockNumber: number;
+  transactionIndex: number;
+  from: string;
+  to: string;
+  value: string;
+  value_eth: number;
+  gas: number;
+  gasPrice: string;
+  gasCost_eth: number;
+  nonce: number;
+  input: string;
+  type: number;
+  chainId: number;
+  date: string;
+  datetime: string;
+  from_normalized: string;
+  to_normalized: string;
+  hash_normalized: string;
+};

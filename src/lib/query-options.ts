@@ -7,6 +7,7 @@ import {
   getExternalTx,
   GetInternalTxParams,
   getInternalTx,
+  getTransaction,
 } from "./api";
 
 export const searchQueryOptions = ({ query, limit }: SearchParams) => {
@@ -42,5 +43,12 @@ export const addressInternalTxQueryOptions = ({
   return queryOptions({
     queryKey: ["internal-tx", address, page, page_size],
     queryFn: () => getInternalTx({ address, page, page_size }),
+  });
+};
+
+export const transactionQueryOptions = (hash: string) => {
+  return queryOptions({
+    queryKey: ["transaction", hash],
+    queryFn: () => getTransaction(hash),
   });
 };

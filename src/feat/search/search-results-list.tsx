@@ -242,8 +242,11 @@ export const SearchResultsList = ({
         });
         break;
       case "transaction":
-        // TODO: 添加交易页导航
-        console.log("Navigate to transaction page for:", value);
+        // 添加交易页导航
+        navigate({
+          to: "/tx/$hash",
+          params: { hash: value },
+        });
         break;
       case "block":
         // TODO: 添加区块页导航
