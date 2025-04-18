@@ -64,7 +64,7 @@ function BlockDetailsComponent() {
 
   // Fetch block info, use a placeholder queryKey if blockNumber is NaN initially
   // This query will be disabled if blockNumber is NaN
-  const { data: blockInfoData, isError: isBlockInfoError } = useSuspenseQuery({
+  const { data: blockInfoData } = useSuspenseQuery({
     ...getBlockInfoQueryOptions(isNaN(blockNumber) ? -1 : blockNumber), // Use placeholder or actual number
   });
 
@@ -90,20 +90,24 @@ function BlockDetailsComponent() {
   const blockGraphError = blockGraphQuery.error;
 
   // --- Graph Data Transformation (MUST be called before early returns) ---
+  const blockInfo = blockInfoData?.data; // 获取 blockInfo
+  const checksumMiner = blockInfo ? toChecksumAddress(blockInfo.miner) : ""; // 获取 checksumMiner
+
   const blockGraphData = useMemo(() => {
     const nodes = new Map<string, GraphNode>();
     const links: GraphLink[] = [];
     let targetNodeId = "";
 
-    if (blockGraphApiData) {
-      // 1. Process Nodes
+    // 确保 blockInfo 和 blockGraphApiData 都存在
+    if (blockGraphApiData && blockInfo) {
+      // --- 1. Process Nodes ---
       if (blockGraphApiData.nodes) {
         blockGraphApiData.nodes.forEach((apiNode) => {
           let nodeId: string;
           let nodeName: string;
           let nodeVal: number;
 
-          if (apiNode.label === "Block") {
+          if (apiNode.label === "Block" && apiNode.properties.blockNumber) {
             nodeId = `block:${apiNode.properties.blockNumber}`; // Unique ID for block
             nodeName = `Block #${apiNode.properties.blockNumber}`;
             nodeVal = 8; // Higher value for the central block node
@@ -116,8 +120,14 @@ function BlockDetailsComponent() {
             nodeId = checksumAddr; // Use checksummed address as ID
             nodeName = checksumAddr;
             nodeVal = 4; // Standard value for address nodes
+          } else if (apiNode.label === "Miner" && apiNode.properties.address) {
+            const checksumAddr = toChecksumAddress(apiNode.properties.address);
+            nodeId = checksumAddr; // Use checksummed address as ID for Miner too
+            nodeName = checksumAddr; // Display Miner address
+            nodeVal = 4; // Treat similarly to address nodes for now
           } else {
-            return; // Skip unknown node types
+            console.warn("Skipping unknown or incomplete node:", apiNode);
+            return; // Skip unknown node types or nodes without necessary properties
           }
 
           if (!nodes.has(nodeId)) {
@@ -131,7 +141,7 @@ function BlockDetailsComponent() {
         });
       }
 
-      // 2. Process Links
+      // --- 2. Process Links from API ---
       if (blockGraphApiData.links) {
         blockGraphApiData.links.forEach((apiLink) => {
           if (!apiLink.source || !apiLink.target) return; // Need source and target
@@ -153,10 +163,22 @@ function BlockDetailsComponent() {
           }
         });
       }
+
+      // --- 3. Add Block -> Miner Link ---
+      const blockNodeId = `block:${blockNumber}`; // 构造 Block 节点 ID
+      const minerNodeId = checksumMiner; // Miner 节点 ID 就是 checksumMiner
+
+      if (nodes.has(blockNodeId) && nodes.has(minerNodeId)) {
+        links.push({
+          source: blockNodeId,
+          target: minerNodeId,
+          label: "MINED_BY", // 定义连接类型标签
+        });
+      }
     }
 
     return { nodes: Array.from(nodes.values()), links, targetNodeId };
-  }, [blockGraphApiData]);
+  }, [blockGraphApiData, blockInfo, blockNumber, checksumMiner]); // 添加 blockInfo, blockNumber, checksumMiner 到依赖项
 
   // ---- Now perform checks and early returns ----
   if (isNaN(blockNumber)) {
@@ -165,13 +187,20 @@ function BlockDetailsComponent() {
 
   // Check if blockInfo query itself had an error (though Suspense might handle this)
   // We might rely on the loader error boundary more here
-  if (isBlockInfoError || !blockInfoData?.data) {
-    return <div>区块信息加载失败或不存在。</div>;
-  }
+  // 将 blockInfo 的获取移到 useMemo 之前
+  // if (isBlockInfoError || !blockInfoData?.data) {
+  //   return <div>区块信息加载失败或不存在。</div>;
+  // }
 
-  const blockInfo = blockInfoData.data;
+  // const blockInfo = blockInfoData.data;
 
   // Get derived data after confirming blockInfo exists
+  // 确保 blockInfo 存在才进行后续操作
+  if (!blockInfo) {
+    // 理论上 Suspense 会处理，但加一层保险
+    return <div>区块信息仍在加载或加载失败...</div>;
+  }
+
   const blockTransactions = blockTxQuery.data?.data?.transactions;
   const totalBlockTransactions = blockTxQuery.data?.data?.total_count ?? 0;
   const isBlockTxLoading = blockTxQuery.isLoading;
@@ -193,8 +222,6 @@ function BlockDetailsComponent() {
       return "N/A";
     }
   };
-
-  const checksumMiner = toChecksumAddress(blockInfo.miner);
 
   return (
     <div key={blockNumber} className="space-y-6">
