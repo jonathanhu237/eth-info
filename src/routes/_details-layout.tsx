@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { createFileRoute, Outlet, Link } from "@tanstack/react-router";
 import { SearchInput } from "@/feat/search/search-input"; // 导入搜索框组件
 import { ModeToggle } from "@/components/mode-toggle";
 
@@ -12,14 +12,25 @@ function RouteComponent() {
       {/* 顶部栏 */}
       <header className="sticky top-0 z-50 w-full border-b bg-background">
         {/* 内部 div 应用和 main 一样的宽度限制、居中和内边距 */}
-        <div className="w-full max-w-7xl mx-auto px-4 flex h-14 items-center justify-end gap-4">
-          {/* 搜索框，调整最大宽度 */}
-          <div className="w-full max-w-lg">
-            <SearchInput />
-          </div>
+        <div className="w-full max-w-7xl mx-auto px-4 flex h-14 items-center justify-between gap-4">
+          {/* 左侧首页链接 */}
+          <Link
+            to="/"
+            className="font-semibold text-lg hover:text-primary transition-colors"
+          >
+            EthInfo {/* 或者你可以用 Logo 组件/图标 */}
+          </Link>
 
-          {/* 主题切换按钮 */}
-          <ModeToggle />
+          {/* 右侧内容 */}
+          <div className="flex items-center gap-4">
+            {/* 搜索框，调整最大宽度 */}
+            <div className="w-full max-w-lg">
+              <SearchInput />
+            </div>
+
+            {/* 主题切换按钮 */}
+            <ModeToggle />
+          </div>
         </div>
       </header>
 
