@@ -16,7 +16,7 @@ import {
 } from "@/types/address-tx-query";
 import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   NeighborGraph,
   GraphNode,
@@ -26,6 +26,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { toChecksumAddress } from "@/lib/utils";
 import { ethers } from "ethers"; // 重新导入 ethers
 import { ExternalNeighborInteractionContext } from "@/types/transaction"; // 重新导入类型
+import ReactMarkdown from "react-markdown"; // 只导入 ReactMarkdown
 
 type SelectedTxType = "external" | "internal"; // 直接使用字符串联合类型
 
@@ -47,8 +48,55 @@ function AddressDetailsComponent() {
     useState<SelectedTxType>("external");
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
+  // 新增 AI 总结状态
+  const [aiSummary, setAiSummary] = useState<string>("");
+  const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const { data: addressInfo } = useSuspenseQuery(addressInfoQueryOptions(hash));
+
+  // --- AI 总结 SSE 请求 ---
+  useEffect(() => {
+    setAiSummary(""); // 重置总结
+    setIsAiLoading(true);
+    setAiError(null);
+
+    const eventSource = new EventSource(
+      `/api/ai/analyze/${hash.toLowerCase()}`
+    );
+
+    eventSource.onmessage = (event) => {
+      console.log("SSE message received:", event.data);
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === "ai_content") {
+          setAiSummary((prev) => prev + data.content);
+        }
+        // 你可以根据后端是否发送特定的结束信号来设置 setIsAiLoading(false)
+        // 例如: if (data.type === 'analysis_complete') { setIsAiLoading(false); }
+        // 如果没有明确的结束信号，可以在 onError 或长时间无消息后设置
+      } catch (error) {
+        console.error("Error parsing SSE message:", error);
+        // 如果解析错误也认为加载结束或者设置错误
+        // setAiError("无法解析分析结果");
+        // setIsAiLoading(false);
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error("SSE Error:", error);
+      setAiError("加载 AI 分析时出错，请稍后重试。");
+      setIsAiLoading(false);
+      eventSource.close(); // 出错时关闭连接
+    };
+
+    // 清理函数：组件卸载或 hash 变化时关闭连接
+    return () => {
+      console.log("Closing SSE connection for:", hash);
+      eventSource.close();
+      setIsAiLoading(false); // 确保在清理时停止加载状态
+    };
+  }, [hash]); // 依赖于 hash
 
   // --- 外部交易查询 (第一跳数据来源) ---
   const externalTxQuery = useQuery({
@@ -347,12 +395,19 @@ function AddressDetailsComponent() {
       <AddressHeader addressInfo={addressInfo} />
 
       {/* 第一行：AI 总结卡片 */}
-      <Card className="col-span-1 md:col-span-1 h-[400px]">
+      <Card className="col-span-1 md:col-span-1 min-h-[200px]">
         <CardHeader>
           <CardTitle>AI 总结</CardTitle>
         </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">即将推出...</p>
+        <CardContent className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
+          {isAiLoading && aiSummary === "" && (
+            <p className="text-muted-foreground">正在分析中，请稍候...</p>
+          )}
+          {aiError && <p className="text-destructive">{aiError}</p>}
+          {!isAiLoading && !aiError && aiSummary === "" && (
+            <p className="text-muted-foreground">暂无 AI 分析结果。</p>
+          )}
+          <ReactMarkdown>{aiSummary}</ReactMarkdown>
         </CardContent>
       </Card>
 
