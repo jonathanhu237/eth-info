@@ -6,6 +6,7 @@ import { toChecksumAddress } from "@/lib/utils";
 import { ethers } from "ethers";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale";
+import { Textarea } from "@/components/ui/textarea";
 
 export const Route = createFileRoute("/_details-layout/tx/$hash")({
   component: TransactionDetailsComponent,
@@ -97,11 +98,7 @@ function TransactionDetailsComponent() {
         <DetailItem label="类型" value={String(tx.type)} />
         <DetailItem label="Chain ID" value={String(tx.chainId)} />
         <DetailItem label="Input 数据">
-          <textarea
-            readOnly
-            className="mt-1 w-full h-24 p-2 border rounded bg-muted font-mono text-xs"
-            value={tx.input}
-          />
+          <Textarea readOnly value={tx.input} className="resize-none" />
         </DetailItem>
       </CardContent>
     </Card>
