@@ -4,7 +4,7 @@ import {
   AddressInternalTxQuery,
 } from "@/types/address-tx-query";
 import { QueryResult } from "@/types/query-result";
-import { Transaction } from "@/types/transaction";
+import { QueryTxInternalTxRes, Transaction } from "@/types/transaction";
 import axios from "axios";
 
 export const apiClient = axios.create({
@@ -74,4 +74,23 @@ export const getInternalTx = async ({
 
 export const getTransaction = async (hash: string) => {
   return apiClient.get<Transaction>(`/transaction/${hash}`);
+};
+
+export type GetTxInternalTxParams = {
+  hash: string;
+  offset: number;
+  limit: number;
+};
+
+export const getTxInternalTx = async ({
+  hash,
+  offset,
+  limit,
+}: GetTxInternalTxParams) => {
+  return apiClient.get<QueryTxInternalTxRes>(`/transaction/${hash}/internal`, {
+    params: {
+      offset,
+      limit,
+    },
+  });
 };

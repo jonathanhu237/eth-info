@@ -8,6 +8,8 @@ import {
   GetInternalTxParams,
   getInternalTx,
   getTransaction,
+  GetTxInternalTxParams,
+  getTxInternalTx,
 } from "./api";
 
 export const searchQueryOptions = ({ query, limit }: SearchParams) => {
@@ -50,5 +52,16 @@ export const transactionQueryOptions = (hash: string) => {
   return queryOptions({
     queryKey: ["transaction", hash],
     queryFn: () => getTransaction(hash),
+  });
+};
+
+export const txInternalTxQueryOptions = ({
+  hash,
+  offset,
+  limit,
+}: GetTxInternalTxParams) => {
+  return queryOptions({
+    queryKey: ["tx-internal-tx", hash, offset, limit],
+    queryFn: () => getTxInternalTx({ hash, offset, limit }),
   });
 };
