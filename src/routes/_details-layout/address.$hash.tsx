@@ -167,7 +167,11 @@ function AddressDetailsComponent() {
         if (neighbor === targetChecksum) return; // Should not happen if 'to' is checked, but safety first
 
         if (!nodes.has(neighbor)) {
-          nodes.set(neighbor, { id: neighbor, name: neighbor, val: 4 });
+          nodes.set(neighbor, {
+            id: neighbor,
+            name: neighbor,
+            val: 4,
+          });
         }
         links.push({
           source: targetChecksum,
@@ -229,100 +233,100 @@ function AddressDetailsComponent() {
   return (
     <div key={hash} className="space-y-4">
       <AddressHeader addressInfo={addressInfo} />
+
+      {/* 第一行：AI 总结卡片 */}
+      <Card className="col-span-1 md:col-span-1 h-[400px]">
+        <CardHeader>
+          <CardTitle>AI 总结</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground">即将推出...</p>
+        </CardContent>
+      </Card>
+
+      {/* 第二行：邻居关系图卡片 */}
+      <Card className="col-span-1 md:col-span-1 h-[500px] flex flex-col">
+        {" "}
+        {/* 保持 flex-col */}
+        <CardHeader className="pb-2">
+          <CardTitle>邻居关系图 (外部交易)</CardTitle>
+        </CardHeader>
+        <CardContent className="relative flex-1 p-0">
+          {" "}
+          {/* 保持 flex-1 */}
+          {/* Loading/Error/Empty States (保持不变) */}
+          {selectedTxType !== "external" && (
+            <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
+              请切换到外部交易查看关系图
+            </div>
+          )}
+          {selectedTxType === "external" && externalTxQuery.isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
+              加载一跳邻居中...
+            </div>
+          )}
+          {selectedTxType === "external" &&
+            externalTxQuery.isSuccess &&
+            interactionsContext.length === 0 &&
+            !externalNeighborsQuery.isFetching && (
+              <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
+                当前页面无外部交易可用于分析邻居
+              </div>
+            )}
+          {selectedTxType === "external" &&
+            externalTxQuery.isSuccess &&
+            interactionsContext.length > 0 &&
+            externalNeighborsQuery.isLoading && (
+              <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
+                加载二跳邻居中...
+              </div>
+            )}
+          {selectedTxType === "external" && externalNeighborsQuery.isError && (
+            <div className="absolute inset-0 flex items-center justify-center text-center text-destructive p-4">
+              加载二跳邻居失败
+            </div>
+          )}
+          {/* Graph Rendering - NeighborGraph 内部会动态获取尺寸 */}
+          {selectedTxType === "external" &&
+            externalTxQuery.isSuccess &&
+            graphData.nodes.length > 1 && (
+              <NeighborGraph
+                graphData={graphData}
+                onNodeClick={handleGraphNodeClick}
+                targetNodeId={toChecksumAddress(hash)}
+              />
+            )}
+          {/* No substantial data state (保持不变) */}
+          {selectedTxType === "external" &&
+            externalTxQuery.isSuccess &&
+            !externalNeighborsQuery.isLoading &&
+            !externalNeighborsQuery.isError &&
+            interactionsContext.length > 0 &&
+            !neighborData?.length &&
+            graphData.nodes.length > 1 && (
+              <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
+                仅显示一跳邻居 (未找到相关的二跳邻居数据)
+              </div>
+            )}
+          {selectedTxType === "external" &&
+            externalTxQuery.isSuccess &&
+            !externalNeighborsQuery.isLoading &&
+            !externalNeighborsQuery.isError &&
+            graphData.nodes.length <= 1 && (
+              <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
+                未找到足够的邻居数据来生成图形
+              </div>
+            )}
+        </CardContent>
+      </Card>
+
+      {/* 第三行：概览 和 更多信息 (使用 Grid) */}
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
         <AddressOverview addressInfo={addressInfo} />
         <AddressMoreInfo addressInfo={addressInfo} />
-
-        {/* 恢复使用 Card 组件 */}
-        <Card className="col-span-1 md:col-span-1 h-[500px] flex flex-col">
-          {" "}
-          {/* 保持 flex-col */}
-          <CardHeader className="pb-2">
-            <CardTitle>邻居关系图 (外部交易)</CardTitle>
-          </CardHeader>
-          <CardContent className="relative flex-1 p-0">
-            {" "}
-            {/* 保持 flex-1 */}
-            {/* Loading/Error/Empty States */}
-            {selectedTxType !== "external" && (
-              <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
-                请切换到外部交易查看关系图
-              </div>
-            )}
-            {selectedTxType === "external" && externalTxQuery.isLoading && (
-              <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
-                加载一跳邻居中...
-              </div>
-            )}
-            {selectedTxType === "external" &&
-              externalTxQuery.isSuccess &&
-              interactionsContext.length === 0 &&
-              !externalNeighborsQuery.isFetching && (
-                <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
-                  当前页面无外部交易可用于分析邻居
-                </div>
-              )}
-            {selectedTxType === "external" &&
-              externalTxQuery.isSuccess &&
-              interactionsContext.length > 0 &&
-              externalNeighborsQuery.isLoading && (
-                <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
-                  加载二跳邻居中...
-                </div>
-              )}
-            {selectedTxType === "external" &&
-              externalNeighborsQuery.isError && (
-                <div className="absolute inset-0 flex items-center justify-center text-center text-destructive p-4">
-                  加载二跳邻居失败
-                </div>
-              )}
-            {/* Graph Rendering - 不再使用固定宽高 */}
-            {selectedTxType === "external" &&
-              externalTxQuery.isSuccess &&
-              graphData.nodes.length > 1 && (
-                /* NeighborGraph 内部会动态获取尺寸 */
-                <NeighborGraph
-                  graphData={graphData}
-                  onNodeClick={handleGraphNodeClick}
-                  targetNodeId={toChecksumAddress(hash)}
-                />
-              )}
-            {/* No substantial data state */}
-            {selectedTxType === "external" &&
-              externalTxQuery.isSuccess &&
-              !externalNeighborsQuery.isLoading &&
-              !externalNeighborsQuery.isError &&
-              interactionsContext.length > 0 &&
-              !neighborData?.length &&
-              graphData.nodes.length > 1 && (
-                <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
-                  仅显示一跳邻居 (未找到相关的二跳邻居数据)
-                </div>
-              )}
-            {selectedTxType === "external" &&
-              externalTxQuery.isSuccess &&
-              !externalNeighborsQuery.isLoading &&
-              !externalNeighborsQuery.isError &&
-              graphData.nodes.length <= 1 && (
-                <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
-                  未找到足够的邻居数据来生成图形
-                </div>
-              )}
-          </CardContent>
-        </Card>
-
-        {/* AI 总结卡片 (占位) */}
-        <Card className="col-span-1 md:col-span-1 h-[400px]">
-          <CardHeader>
-            <CardTitle>AI 总结</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">即将推出...</p>
-          </CardContent>
-        </Card>
       </div>
 
-      {/* 切换按钮 */}
+      {/* 切换按钮 (保持不变) */}
       <div className="flex border-b">
         <button
           className={`px-4 py-2 text-sm font-medium cursor-pointer ${
