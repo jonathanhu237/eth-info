@@ -4,6 +4,20 @@ export interface BlockGraphApiNode {
   label: string;
   properties: {
     blockNumber?: number; // Make optional as not all nodes might have it
+    address?: string; // Add optional address for Address nodes
+    // Add other potential properties if needed
+  };
+}
+
+// Structure for links from /graph/block/{block_number}/content API
+export interface BlockGraphApiLink {
+  id: string;
+  source: string; // Address
+  target: string; // Address
+  type: "TRANSFER_EXTERNAL" | "TRANSFER_INTERNAL" | string; // More types?
+  properties: {
+    hash?: string | null; // Optional transaction hash
+    blockNumber?: number;
     // Add other potential properties if needed
   };
 }
@@ -11,6 +25,7 @@ export interface BlockGraphApiNode {
 // Response structure for /graph/block/{block_number}/content API
 export interface BlockGraphContentResponse {
   nodes: BlockGraphApiNode[];
+  links: BlockGraphApiLink[]; // Add links array
 }
 
 // --- Transaction Neighbors Graph Types ---

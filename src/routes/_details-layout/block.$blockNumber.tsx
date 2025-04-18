@@ -4,7 +4,12 @@ import {
   blockGraphContentQueryOptions,
 } from "@/lib/query-options";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, useParams } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  useParams,
+  useNavigate,
+} from "@tanstack/react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toChecksumAddress } from "@/lib/utils";
 import { ethers } from "ethers";
@@ -12,7 +17,11 @@ import { format } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { useState, useMemo, useCallback } from "react";
 import { BlockTxTable } from "@/feat/block/block-tx-table";
-import { NeighborGraph, GraphNode } from "@/feat/graph/neighbor-graph";
+import {
+  NeighborGraph,
+  GraphNode,
+  GraphLink,
+} from "@/feat/graph/neighbor-graph";
 
 export const Route = createFileRoute("/_details-layout/block/$blockNumber")({
   component: BlockDetailsComponent,
@@ -33,6 +42,7 @@ export const Route = createFileRoute("/_details-layout/block/$blockNumber")({
 function BlockDetailsComponent() {
   // Hooks must be called at the top level
   const params = useParams({ from: Route.id });
+  const navigate = useNavigate();
   const blockNumberParam = params.blockNumber; // Get param as string first
   const [blockTxCurrentPage, setBlockTxCurrentPage] = useState(1);
   const blockTxPageSize = 10;
@@ -41,9 +51,16 @@ function BlockDetailsComponent() {
   const blockNumber = parseInt(blockNumberParam, 10);
 
   // Define graph click handler early
-  const handleBlockGraphNodeClick = useCallback(() => {
-    // No-op for now, can add navigation later if needed
-  }, []);
+  const handleBlockGraphNodeClick = useCallback(
+    (node: GraphNode) => {
+      // Check if the clicked node is an address node (id does not contain ':')
+      if (node && node.id && !node.id.includes(":")) {
+        console.log("Navigating to address:", node.id);
+        navigate({ to: "/address/$hash", params: { hash: node.id } });
+      }
+    },
+    [navigate]
+  );
 
   // Fetch block info, use a placeholder queryKey if blockNumber is NaN initially
   // This query will be disabled if blockNumber is NaN
@@ -64,7 +81,7 @@ function BlockDetailsComponent() {
 
   // Fetch block graph content
   const blockGraphQuery = useQuery({
-    ...blockGraphContentQueryOptions(blockNumber), // Use -1 if NaN already handled
+    ...blockGraphContentQueryOptions(blockNumber),
     enabled: !isNaN(blockNumber),
   });
   const blockGraphApiData = blockGraphQuery.data?.data;
@@ -74,32 +91,72 @@ function BlockDetailsComponent() {
 
   // --- Graph Data Transformation (MUST be called before early returns) ---
   const blockGraphData = useMemo(() => {
-    const nodes: GraphNode[] = [];
+    const nodes = new Map<string, GraphNode>();
+    const links: GraphLink[] = [];
     let targetNodeId = "";
 
-    // Check apiData exists before mapping
-    if (blockGraphApiData?.nodes) {
-      blockGraphApiData.nodes.forEach((apiNode) => {
-        const isTarget = apiNode.label === "Block";
-        nodes.push({
-          id: apiNode.id,
-          name: `${apiNode.label}${isTarget ? " #" + blockNumber : ""}`, // Add block number to label
-          val: isTarget ? 8 : 4, // Use val for coloring via NeighborGraph logic
-          // color is handled dynamically in NeighborGraph
+    if (blockGraphApiData) {
+      // 1. Process Nodes
+      if (blockGraphApiData.nodes) {
+        blockGraphApiData.nodes.forEach((apiNode) => {
+          let nodeId: string;
+          let nodeName: string;
+          let nodeVal: number;
+
+          if (apiNode.label === "Block") {
+            nodeId = `block:${apiNode.properties.blockNumber}`; // Unique ID for block
+            nodeName = `Block #${apiNode.properties.blockNumber}`;
+            nodeVal = 8; // Higher value for the central block node
+            targetNodeId = nodeId; // Set the target node ID
+          } else if (
+            apiNode.label === "Address" &&
+            apiNode.properties.address
+          ) {
+            const checksumAddr = toChecksumAddress(apiNode.properties.address);
+            nodeId = checksumAddr; // Use checksummed address as ID
+            nodeName = checksumAddr;
+            nodeVal = 4; // Standard value for address nodes
+          } else {
+            return; // Skip unknown node types
+          }
+
+          if (!nodes.has(nodeId)) {
+            nodes.set(nodeId, {
+              id: nodeId,
+              name: nodeName,
+              val: nodeVal,
+              // Color is handled by NeighborGraph
+            });
+          }
         });
-        if (isTarget) {
-          targetNodeId = apiNode.id; // Capture the target node ID
-        }
-      });
-    } else {
-      // Handle case where apiData is null/undefined, return empty graph
-      console.warn(
-        "[BlockDetails] blockGraphApiData is null/undefined during memoization."
-      );
+      }
+
+      // 2. Process Links
+      if (blockGraphApiData.links) {
+        blockGraphApiData.links.forEach((apiLink) => {
+          if (!apiLink.source || !apiLink.target) return; // Need source and target
+
+          const sourceAddr = toChecksumAddress(apiLink.source);
+          const targetAddr = toChecksumAddress(apiLink.target);
+
+          // Ensure source and target nodes exist from the nodes list
+          if (nodes.has(sourceAddr) && nodes.has(targetAddr)) {
+            links.push({
+              source: sourceAddr,
+              target: targetAddr,
+              label: `${apiLink.type} (${
+                apiLink.properties.hash
+                  ? apiLink.properties.hash.substring(0, 6) + "..."
+                  : "N/A"
+              })`,
+            });
+          }
+        });
+      }
     }
 
-    return { nodes, links: [], targetNodeId }; // Return links as empty array and targetNodeId
-  }, [blockGraphApiData, blockNumber]);
+    return { nodes: Array.from(nodes.values()), links, targetNodeId };
+  }, [blockGraphApiData]);
 
   // ---- Now perform checks and early returns ----
   if (isNaN(blockNumber)) {
