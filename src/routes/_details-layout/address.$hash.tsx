@@ -32,6 +32,34 @@ import { Components } from "react-markdown"; // 导入 Components type
 
 type SelectedTxType = "external" | "internal"; // 直接使用字符串联合类型
 
+// 模拟 SSE 流数据块 (放在组件外部)
+const MOCK_AI_STREAM_DATA = [
+  { type: "ai_content", content: "### 区块链地址分析报告 (Mock)\n\n" },
+  { type: "ai_content", content: "分析地址：`{address}`\n\n" }, // 使用占位符
+  {
+    type: "ai_content",
+    content:
+      "| 特征         | 观察结果                   | 推测         |\n|--------------|--------------------------|--------------|\n",
+  },
+  {
+    type: "ai_content",
+    content: "| 交易频率     | 中等                     | 普通用户     |\n",
+  },
+  {
+    type: "ai_content",
+    content: "| 交互合约类型 | Uniswap, Aave            | DeFi 参与者  |\n",
+  },
+  {
+    type: "ai_content",
+    content: "| 大额交易     | 少量 (例如: 10 ETH 转入)  | 可能的早期投资 |\n",
+  },
+  {
+    type: "ai_content",
+    content: "\n**总结:** 该地址表现为一个活跃的 DeFi 用户。\n",
+  },
+  { type: "ai_end" }, // 结束信号
+];
+
 export const Route = createFileRoute("/_details-layout/address/$hash")({
   component: AddressDetailsComponent,
   // 移除 page, pageSize from loaderDeps
@@ -57,57 +85,98 @@ function AddressDetailsComponent() {
 
   const { data: addressInfo } = useSuspenseQuery(addressInfoQueryOptions(hash));
 
-  // --- AI 总结 SSE 请求 ---
+  // --- AI 总结 SSE 请求 或 Mock (由环境变量控制) ---
   useEffect(() => {
+    // 读取环境变量
+    const isMockEnabled = import.meta.env.VITE_USE_MOCK_AI === "true";
+    console.log(
+      `AI Mock Mode ${
+        isMockEnabled ? "Enabled" : "Disabled"
+      } by environment variable.`
+    );
+
     setAiSummary(""); // 重置总结
     setIsAiLoading(true);
     setAiError(null);
 
-    const eventSource = new EventSource(
-      `/api/ai/analyze/${hash.toLowerCase()}`
-    );
+    let intervalId: NodeJS.Timeout | null = null;
+    let eventSource: EventSource | null = null;
 
-    eventSource.onmessage = (event) => {
-      console.log("SSE message received:", event.data);
-      try {
-        const data = JSON.parse(event.data);
-
-        // 检查是否是结束信号 (后端确认发送 {type: "ai_end"})
-        if (data.type === "ai_end") {
-          // 检查明确的结束信号
-          console.log("SSE analysis 'ai_end' message received.");
+    if (isMockEnabled) {
+      // --- Mock 模式 ---
+      console.log("Using Mock AI Summary for:", hash);
+      let chunkIndex = 0;
+      intervalId = setInterval(() => {
+        if (chunkIndex >= MOCK_AI_STREAM_DATA.length) {
+          clearInterval(intervalId!);
           setIsAiLoading(false);
-          eventSource.close(); // 收到结束信号，主动关闭
-          return; // 不再处理此消息
+          return;
         }
 
-        if (data.type === "ai_content") {
-          setAiSummary((prev) => prev + data.content);
+        const chunk = MOCK_AI_STREAM_DATA[chunkIndex];
+        if (chunk.type === "ai_content" && typeof chunk.content === "string") {
+          // 替换地址占位符
+          const content = chunk.content.replace(
+            "{address}",
+            toChecksumAddress(hash)
+          );
+          setAiSummary((prev) => prev + content);
+        } else if (chunk.type === "ai_end") {
+          clearInterval(intervalId!);
+          setIsAiLoading(false);
         }
-        // 不再依赖 onmessage 中的定时器或隐式结束判断来设置 isAiLoading
-      } catch (error) {
-        console.error("Error parsing SSE message:", error);
-        // 如果解析错误也认为加载结束或者设置错误
-        // setAiError("无法解析分析结果");
-        // setIsAiLoading(false);
-      }
-    };
 
-    eventSource.onerror = (error) => {
-      console.error("SSE Error:", error);
-      // 恢复 onerror 的原始行为，总是报告错误
-      setAiError("加载 AI 分析时出错，请稍后重试。");
-      setIsAiLoading(false); // 无论如何都结束加载状态
-      eventSource.close(); // 出错或结束时都关闭连接
-    };
+        chunkIndex++;
+      }, 150); // 每 150ms 发送一个数据块
+    } else {
+      // --- 真实 API 请求模式 ---
+      console.log("Requesting Real AI Summary for:", hash);
+      eventSource = new EventSource(`/api/ai/analyze/${hash.toLowerCase()}`);
 
-    // 清理函数：组件卸载或 hash 变化时关闭连接
+      eventSource.onmessage = (event) => {
+        console.log("SSE message received:", event.data);
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "ai_end") {
+            console.log("SSE analysis 'ai_end' message received.");
+            setIsAiLoading(false);
+            eventSource?.close(); // 收到结束信号，主动关闭
+            return;
+          }
+          if (data.type === "ai_content") {
+            setAiSummary((prev) => prev + data.content);
+          }
+        } catch (error) {
+          console.error("Error parsing SSE message:", error);
+          // setAiError("无法解析分析结果"); // 解析错误通常不直接暴露给用户
+        }
+      };
+
+      eventSource.onerror = (error) => {
+        console.error("SSE Error:", error);
+        // 只有在从未收到内容时才认为是真错误 (如果 eventSource 存在)
+        if (eventSource && aiSummary.trim() === "") {
+          setAiError("加载 AI 分析时出错，请稍后重试。");
+        }
+        setIsAiLoading(false);
+        eventSource?.close();
+      };
+    }
+
+    // 清理函数
     return () => {
-      console.log("Closing SSE connection for:", hash);
-      eventSource.close();
-      setIsAiLoading(false); // 确保在清理时停止加载状态
+      if (intervalId) {
+        console.log("Clearing Mock AI interval for:", hash);
+        clearInterval(intervalId);
+      }
+      if (eventSource) {
+        console.log("Closing SSE connection for:", hash);
+        eventSource.close();
+      }
+      // 离开页面或切换模式时，确保加载状态关闭
+      setIsAiLoading(false);
     };
-  }, [hash]); // 依赖于 hash
+  }, [hash]); // 只依赖 hash
 
   // --- 定义 Markdown 组件映射来处理表格和链接样式 ---
   const markdownComponents = useMemo<Partial<Components>>(
