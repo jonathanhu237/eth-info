@@ -239,7 +239,6 @@ export const SearchResultsList = ({
         navigate({
           to: "/address/$hash", // 确保路径正确
           params: { hash: value },
-          search: { page: 1, pageSize: 10, txType: "external" }, // 添加 txType 参数
         });
         break;
       case "transaction":

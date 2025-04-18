@@ -1,15 +1,16 @@
+import { Link } from "@tanstack/react-router";
 import {
+  CellContext,
   ColumnDef,
   flexRender,
   getCoreRowModel,
   getPaginationRowModel,
-  useReactTable,
-  CellContext,
-  Row,
   HeaderGroup,
+  Row,
+  useReactTable,
 } from "@tanstack/react-table";
-import { Link } from "@tanstack/react-router";
 
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -18,15 +19,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { ExternalTxQuery } from "@/types/external-tx-query";
 import { toChecksumAddress } from "@/lib/utils";
+import { AddressExternalTxQuery } from "@/types/address-tx-query";
 import { formatDistanceToNowStrict } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { ethers } from "ethers";
 
 // --- 类型定义 ---
-type Transaction = ExternalTxQuery["transactions"][0];
+type Transaction = AddressExternalTxQuery["transactions"][0];
 
 // --- 组件 Props ---
 interface ExternalTransactionsTableProps {
@@ -36,6 +36,7 @@ interface ExternalTransactionsTableProps {
   pageSize: number;
   onPageChange: (newPage: number) => void;
   totalTransactions: number;
+  isFetching?: boolean;
 }
 
 // --- 列定义 ---
@@ -161,6 +162,7 @@ export function ExternalTransactionsTable({
   pageSize,
   onPageChange,
   totalTransactions,
+  isFetching,
 }: ExternalTransactionsTableProps) {
   const transactions = data ?? [];
   const pageIndex = currentPage - 1;
@@ -242,8 +244,8 @@ export function ExternalTransactionsTable({
               variant="outline"
               size="sm"
               onClick={() => onPageChange(currentPage - 1)}
-              disabled={currentPage <= 1}
-              className="cursor-pointer"
+              disabled={currentPage <= 1 || isFetching}
+              className="cursor-pointer w-20"
             >
               上一页
             </Button>
@@ -251,8 +253,8 @@ export function ExternalTransactionsTable({
               variant="outline"
               size="sm"
               onClick={() => onPageChange(currentPage + 1)}
-              disabled={currentPage >= pageCount}
-              className="cursor-pointer"
+              disabled={currentPage >= pageCount || isFetching}
+              className="cursor-pointer w-20"
             >
               下一页
             </Button>

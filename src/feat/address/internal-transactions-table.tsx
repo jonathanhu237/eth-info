@@ -1,15 +1,16 @@
+import { Link } from "@tanstack/react-router";
 import {
+  CellContext,
   ColumnDef,
   flexRender,
   getCoreRowModel,
   getPaginationRowModel,
-  useReactTable,
-  CellContext,
-  Row,
   HeaderGroup,
+  Row,
+  useReactTable,
 } from "@tanstack/react-table";
-import { Link } from "@tanstack/react-router";
 
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -18,9 +19,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { AddressInternalTxQuery } from "@/types/address-tx-query"; // 使用内部交易类型
 import { toChecksumAddress } from "@/lib/utils";
+import { AddressInternalTxQuery } from "@/types/address-tx-query"; // 使用内部交易类型
 import { formatDistanceToNowStrict } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { ethers } from "ethers";
@@ -36,6 +36,7 @@ interface InternalTransactionsTableProps {
   pageSize: number;
   onPageChange: (newPage: number) => void;
   totalTransactions: number;
+  isFetching?: boolean;
 }
 
 // --- 列定义 (根据内部交易调整) ---
@@ -187,6 +188,7 @@ export function InternalTransactionsTable({
   pageSize,
   onPageChange,
   totalTransactions,
+  isFetching,
 }: InternalTransactionsTableProps) {
   const transactions = data ?? [];
   const pageIndex = currentPage - 1;
@@ -268,8 +270,8 @@ export function InternalTransactionsTable({
               variant="outline"
               size="sm"
               onClick={() => onPageChange(currentPage - 1)}
-              disabled={currentPage <= 1}
-              className="cursor-pointer"
+              disabled={currentPage <= 1 || isFetching}
+              className="cursor-pointer w-20"
             >
               上一页
             </Button>
@@ -277,8 +279,8 @@ export function InternalTransactionsTable({
               variant="outline"
               size="sm"
               onClick={() => onPageChange(currentPage + 1)}
-              disabled={currentPage >= pageCount}
-              className="cursor-pointer"
+              disabled={currentPage >= pageCount || isFetching}
+              className="cursor-pointer w-20"
             >
               下一页
             </Button>
