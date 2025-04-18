@@ -139,7 +139,7 @@ function AddressDetailsComponent() {
         chunkIndex++;
       }, 150);
     } else {
-      const apiUrl = `/api/ai/analyze/address/${hash.toLowerCase()}?type=${selectedTxType}&page=${currentPageForAI}&limit=${pageSize}`;
+      const apiUrl = `/api/ai/analyze/${hash.toLowerCase()}?ext_page=${externalCurrentPage}&ext_limit=${pageSize}&int_page=${internalCurrentPage}&int_limit=${pageSize}`;
       console.log("Requesting Real AI Summary from:", apiUrl);
       eventSource = new EventSource(apiUrl);
       // 处理 SSE 消息
