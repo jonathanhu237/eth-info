@@ -27,7 +27,7 @@ import remarkGfm from "remark-gfm";
 import { Components } from "react-markdown";
 
 // Define colors and MOCK data (copied from address page, consider extracting later)
-const BLOCK_NODE_COLOR = "hsl(var(--chart-1))";
+// const BLOCK_NODE_COLOR = "hsl(var(--chart-1))"; // 移除未使用的常量
 
 const MOCK_AI_STREAM_DATA = [
   { type: "ai_content", content: "### 区块链区块分析报告 (Mock)\n\n" },
@@ -78,7 +78,7 @@ function BlockDetailsComponent() {
   const navigate = useNavigate();
   const blockNumberParam = params.blockNumber; // Get param as string first
   const [blockTxCurrentPage, setBlockTxCurrentPage] = useState(1);
-  const [blockTxPageSize, setBlockTxPageSize] = useState(10);
+  const blockTxPageSize = 10; // Page size is fixed
 
   // Add AI Summary States
   const [aiSummary, setAiSummary] = useState<string>("");
