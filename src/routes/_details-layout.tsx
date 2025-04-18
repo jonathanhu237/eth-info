@@ -21,10 +21,10 @@ function RouteComponent() {
             EthInfo {/* 或者你可以用 Logo 组件/图标 */}
           </Link>
 
-          {/* 右侧内容 */}
-          <div className="flex items-center gap-4">
+          {/* 右侧内容 - 添加 flex-grow 让其占据剩余空间 */}
+          <div className="flex flex-grow items-center justify-end gap-4">
             {/* 搜索框，调整最大宽度 */}
-            <div className="w-full max-w-lg">
+            <div className="w-full max-w-md">
               <SearchInput />
             </div>
 
