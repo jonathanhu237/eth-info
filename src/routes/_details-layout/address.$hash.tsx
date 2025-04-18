@@ -15,7 +15,7 @@ import {
   AddressInternalTxQuery,
 } from "@/types/address-tx-query";
 import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   NeighborGraph,
@@ -27,6 +27,8 @@ import { toChecksumAddress } from "@/lib/utils";
 import { ethers } from "ethers"; // 重新导入 ethers
 import { ExternalNeighborInteractionContext } from "@/types/transaction"; // 重新导入类型
 import ReactMarkdown from "react-markdown"; // 只导入 ReactMarkdown
+import remarkGfm from "remark-gfm"; // 导入 remark-gfm
+import { Components } from "react-markdown"; // 导入 Components type
 
 type SelectedTxType = "external" | "internal"; // 直接使用字符串联合类型
 
@@ -69,12 +71,20 @@ function AddressDetailsComponent() {
       console.log("SSE message received:", event.data);
       try {
         const data = JSON.parse(event.data);
+
+        // 检查是否是结束信号 (后端确认发送 {type: "ai_end"})
+        if (data.type === "ai_end") {
+          // 检查明确的结束信号
+          console.log("SSE analysis 'ai_end' message received.");
+          setIsAiLoading(false);
+          eventSource.close(); // 收到结束信号，主动关闭
+          return; // 不再处理此消息
+        }
+
         if (data.type === "ai_content") {
           setAiSummary((prev) => prev + data.content);
         }
-        // 你可以根据后端是否发送特定的结束信号来设置 setIsAiLoading(false)
-        // 例如: if (data.type === 'analysis_complete') { setIsAiLoading(false); }
-        // 如果没有明确的结束信号，可以在 onError 或长时间无消息后设置
+        // 不再依赖 onmessage 中的定时器或隐式结束判断来设置 isAiLoading
       } catch (error) {
         console.error("Error parsing SSE message:", error);
         // 如果解析错误也认为加载结束或者设置错误
@@ -85,9 +95,10 @@ function AddressDetailsComponent() {
 
     eventSource.onerror = (error) => {
       console.error("SSE Error:", error);
+      // 恢复 onerror 的原始行为，总是报告错误
       setAiError("加载 AI 分析时出错，请稍后重试。");
-      setIsAiLoading(false);
-      eventSource.close(); // 出错时关闭连接
+      setIsAiLoading(false); // 无论如何都结束加载状态
+      eventSource.close(); // 出错或结束时都关闭连接
     };
 
     // 清理函数：组件卸载或 hash 变化时关闭连接
@@ -97,6 +108,92 @@ function AddressDetailsComponent() {
       setIsAiLoading(false); // 确保在清理时停止加载状态
     };
   }, [hash]); // 依赖于 hash
+
+  // --- 定义 Markdown 组件映射来处理表格和链接样式 ---
+  const markdownComponents = useMemo<Partial<Components>>(
+    () => ({
+      table: ({ ...props }) => (
+        <table
+          className="w-full my-4 border-collapse border border-slate-400 dark:border-slate-500"
+          {...props}
+        />
+      ),
+      thead: ({ ...props }) => (
+        <thead className="bg-slate-100 dark:bg-slate-800" {...props} />
+      ),
+      tbody: ({ ...props }) => <tbody {...props} />,
+      tr: ({ ...props }) => (
+        <tr
+          className="border-b border-slate-200 dark:border-slate-700"
+          {...props}
+        />
+      ),
+      th: ({ ...props }) => (
+        <th
+          className="border border-slate-300 dark:border-slate-600 p-2 text-left font-semibold"
+          {...props}
+        />
+      ),
+      td: ({ ...props }) => (
+        <td
+          className="border border-slate-300 dark:border-slate-600 p-2 align-top"
+          {...props}
+        />
+      ),
+      a: ({ href, ...props }) => {
+        // 如果是外部链接，使用普通 a 标签
+        if (href && (href.startsWith("http") || href.startsWith("//"))) {
+          return (
+            <a
+              href={href}
+              className="text-primary hover:underline"
+              target="_blank"
+              rel="noopener noreferrer"
+              {...props}
+            />
+          );
+        }
+        // 如果看起来像一个地址（内部链接），尝试使用 Link 组件
+        // 注意：这里假设所有非外部链接都是地址链接，可能需要根据实际情况调整
+        const potentialHash = props.children;
+        if (
+          typeof potentialHash === "string" &&
+          potentialHash.startsWith("0x")
+        ) {
+          try {
+            // 尝试 checksum 转换，虽然 Link 的 to 不需要，但可以验证格式
+            const checksumAddr = toChecksumAddress(potentialHash);
+            return (
+              <Link
+                to="/address/$hash"
+                params={{ hash: checksumAddr }}
+                className="text-primary hover:underline"
+                {...props}
+              />
+            );
+          } catch {
+            // 转换失败，当作普通文本或外部链接处理
+            console.warn(
+              "Markdown link looks like address but failed checksum:",
+              potentialHash
+            );
+            return (
+              <a
+                href={href}
+                className="text-primary hover:underline"
+                {...props}
+              />
+            );
+          }
+        }
+        // 其他内部链接（例如页内跳转 #）或无法识别的，使用普通 a
+        return (
+          <a href={href} className="text-primary hover:underline" {...props} />
+        );
+      },
+    }),
+    []
+  );
 
   // --- 外部交易查询 (第一跳数据来源) ---
   const externalTxQuery = useQuery({
@@ -407,7 +504,12 @@ function AddressDetailsComponent() {
           {!isAiLoading && !aiError && aiSummary === "" && (
             <p className="text-muted-foreground">暂无 AI 分析结果。</p>
           )}
-          <ReactMarkdown>{aiSummary}</ReactMarkdown>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={markdownComponents} // 使用新的映射
+          >
+            {aiSummary}
+          </ReactMarkdown>
         </CardContent>
       </Card>
 
