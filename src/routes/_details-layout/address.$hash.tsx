@@ -531,11 +531,11 @@ function AddressDetailsComponent() {
     return { nodes: Array.from(nodes.values()), links };
   }, [hash, internalTransactions, internalNeighborData]);
 
-  // --- 图例数据 (保持不变) ---
+  // --- 更新图例数据以包含颜色 ---
   const addressLegendItems = [
-    { type: "target", label: "目标地址" },
-    { type: "hop1", label: "一跳邻居" },
-    { type: "hop2", label: "二跳邻居" },
+    { type: "target", label: "目标地址", color: "var(--chart-1)" },
+    { type: "hop1", label: "一跳邻居", color: "var(--chart-2)" },
+    { type: "hop2", label: "二跳邻居", color: "var(--chart-3)" },
   ];
 
   // --- 节点点击处理 (保持不变) ---

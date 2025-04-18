@@ -386,9 +386,9 @@ function BlockDetailsComponent() {
 
   // --- 定义图例数据 ---
   const blockLegendItems = [
-    { type: "block", label: "区块" },
-    { type: "address", label: "地址" },
-    { type: "miner", label: "矿工" },
+    { type: "block", label: "区块", color: "var(--chart-1)" },
+    { type: "address", label: "地址", color: "var(--chart-2)" },
+    { type: "miner", label: "矿工", color: "var(--chart-3)" },
   ];
 
   // ---- Now perform checks and early returns ----
@@ -525,7 +525,7 @@ function BlockDetailsComponent() {
                 }}
                 targetNodeId={blockGraphData.targetNodeId}
                 onNodeClick={handleBlockGraphNodeClick}
-                legendItems={blockLegendItems} // 传递图例数据
+                legendItems={blockLegendItems} // 传递更新后的图例
               />
             )}
         </CardContent>

@@ -300,52 +300,103 @@ function TransactionDetailsComponent() {
   const isTxNeighborError = txNeighborsQuery.isError;
   const txNeighborError = txNeighborsQuery.error;
 
-  // --- Transform Tx Neighbor Data for Graph ---
+  // --- Transform Tx Neighbor Data for Graph (Revised Logic with Colors/Types) ---
   const txGraphData = useMemo(() => {
     const nodes = new Map<string, GraphNode>();
     const links = new Map<string, GraphLink>();
-    const targetNodeId = `tx:${hash}`; // Unique ID for the tx node
+    const targetTxNodeId = `tx:${hash}`;
+
+    if (!tx) {
+      return { nodes: [], links: [], targetNodeId: targetTxNodeId };
+    }
+
+    const senderAddress = toChecksumAddress(tx.from);
+    const receiverAddress = tx.to ? toChecksumAddress(tx.to) : null;
 
     // 1. Add Target Transaction Node
-    if (!nodes.has(targetNodeId)) {
-      nodes.set(targetNodeId, {
-        id: targetNodeId,
+    if (!nodes.has(targetTxNodeId)) {
+      nodes.set(targetTxNodeId, {
+        id: targetTxNodeId,
         name: `Tx: ${hash.substring(0, 8)}...`,
-        val: 8, // Central node value
-        type: "tx", // 设置类型
+        val: 10,
+        type: "tx", // Assign type
       });
     }
 
-    // Check if txNeighborApiData is an array and has elements
+    // 2. Add Sender Node
+    if (!nodes.has(senderAddress)) {
+      nodes.set(senderAddress, {
+        id: senderAddress,
+        name: senderAddress,
+        val: 6,
+        type: "sender", // Assign specific type for sender
+      });
+    }
+    // Link Sender -> Tx
+    const linkIdSenderToTx = `${senderAddress}->${targetTxNodeId}`;
+    if (!links.has(linkIdSenderToTx)) {
+      links.set(linkIdSenderToTx, {
+        source: senderAddress,
+        target: targetTxNodeId,
+        label: "发起",
+      });
+    }
+
+    // 3. Add Receiver Node (if valid and different from sender)
+    if (receiverAddress && receiverAddress !== senderAddress) {
+      if (!nodes.has(receiverAddress)) {
+        nodes.set(receiverAddress, {
+          id: receiverAddress,
+          name: receiverAddress,
+          val: 6,
+          type: "receiver", // Assign specific type for receiver
+        });
+      }
+      // Link Tx -> Receiver
+      const linkIdTxToReceiver = `${targetTxNodeId}->${receiverAddress}`;
+      if (!links.has(linkIdTxToReceiver)) {
+        links.set(linkIdTxToReceiver, {
+          source: targetTxNodeId,
+          target: receiverAddress,
+          label: "接收",
+        });
+      }
+    }
+
+    // 4. Process Neighbor Data for Second Hop Links
     if (Array.isArray(txNeighborApiData) && txNeighborApiData.length > 0) {
-      // Iterate over each context in the response array
       txNeighborApiData.forEach((txContext) => {
         if (!txContext?.b_address_string) return;
 
         const hop1Address = toChecksumAddress(txContext.b_address_string);
         const hop1NodeId = hop1Address;
 
-        // 2. Add First Hop Node (b_address_string)
+        // Ensure the first hop node exists
+        // If it's not the sender or receiver, add it as a generic 'hop1'
         if (!nodes.has(hop1NodeId)) {
+          console.warn(
+            "Hop 1 node from neighbor API not found initially, adding:",
+            hop1NodeId
+          );
           nodes.set(hop1NodeId, {
             id: hop1NodeId,
             name: hop1Address,
-            val: 4, // 1st hop value
-            type: "hop1", // 设置类型
+            val: 6,
+            type: "hop1", // Assign generic hop1 type
           });
+          // Optionally link Tx -> this node too? Maybe with label "interacts_with"?
+          // Let's add this link for completeness
+          const linkIdTxToOtherHop1 = `${targetTxNodeId}->${hop1NodeId}`;
+          if (!links.has(linkIdTxToOtherHop1)) {
+            links.set(linkIdTxToOtherHop1, {
+              source: targetTxNodeId,
+              target: hop1NodeId,
+              label: "相关", // Generic interaction label
+            });
+          }
         }
 
-        // 3. Link Target Tx -> First Hop Address (avoid duplicates)
-        const linkIdTxToHop1 = `${targetNodeId}->${hop1NodeId}`;
-        if (!links.has(linkIdTxToHop1)) {
-          links.set(linkIdTxToHop1, {
-            source: targetNodeId,
-            target: hop1NodeId,
-            label: "interacts",
-          }); // Add simple label
-        }
-
-        // 4. Add Second Hop Nodes and Links
+        // Process Second Hop Links from this hop1Address
         if (Array.isArray(txContext.second_hop_links)) {
           txContext.second_hop_links.forEach((link) => {
             if (!link?.neighbor_address?.address) return;
@@ -355,20 +406,19 @@ function TransactionDetailsComponent() {
             );
             const hop2NodeId = hop2Address;
 
-            // Avoid linking node to itself or back to the target Tx
             if (hop2Address === hop1Address) return;
 
-            // Add Second Hop Node
+            // Add Second Hop Node if it doesn't exist
             if (!nodes.has(hop2NodeId)) {
               nodes.set(hop2NodeId, {
                 id: hop2NodeId,
                 name: hop2Address,
-                val: 2, // 2nd hop value
-                type: "hop2", // 设置类型
+                val: 4,
+                type: "hop2", // Assign hop2 type
               });
             }
 
-            // Link First Hop Address -> Second Hop Address (avoid duplicates)
+            // Link First Hop Address -> Second Hop Address
             const linkIdHop1ToHop2 = `${hop1NodeId}->${hop2NodeId}`;
             if (!links.has(linkIdHop1ToHop2)) {
               links.set(linkIdHop1ToHop2, {
@@ -389,15 +439,16 @@ function TransactionDetailsComponent() {
     return {
       nodes: Array.from(nodes.values()),
       links: Array.from(links.values()),
-      targetNodeId,
+      targetNodeId: targetTxNodeId,
     };
-  }, [txNeighborApiData, hash]);
+  }, [tx, txNeighborApiData, hash]);
 
-  // --- 定义图例数据 ---
+  // --- 更新图例数据为四项 ---
   const txLegendItems = [
-    { type: "tx", label: "交易" },
-    { type: "hop1", label: "一跳邻居" },
-    { type: "hop2", label: "二跳邻居" },
+    { type: "tx", label: "交易", color: "var(--chart-1)" },
+    { type: "sender", label: "发送方", color: "var(--chart-2)" },
+    { type: "receiver", label: "接收方", color: "var(--chart-3)" },
+    { type: "hop2", label: "二跳邻居", color: "var(--chart-4)" }, // hop2 使用 chart-4
   ];
 
   if (!tx) {
@@ -525,7 +576,7 @@ function TransactionDetailsComponent() {
                 }}
                 targetNodeId={txGraphData.targetNodeId}
                 onNodeClick={handleTxGraphNodeClick}
-                legendItems={txLegendItems} // 传递图例数据
+                legendItems={txLegendItems} // Pass the updated 4-item legend
               />
             )}
         </CardContent>

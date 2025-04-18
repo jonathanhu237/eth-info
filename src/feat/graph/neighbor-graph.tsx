@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect, useState, useMemo } from "react";
+import { useRef, useCallback, useEffect, useState } from "react";
 // import dynamic from 'next/dynamic'; // REMOVED
 // import { useTheme } from "next-themes"; // REMOVED
 import ForceGraph2D, {
@@ -27,9 +27,9 @@ export interface GraphLink extends LinkObject {
 
 // Define Legend Item Type
 interface LegendItem {
-  // color: string; // Remove color
-  type: string; // Use type identifier
+  type: string;
   label: string;
+  color?: string; // Add optional color string (e.g., "var(--chart-1)")
 }
 
 interface NeighborGraphProps {
@@ -41,103 +41,96 @@ interface NeighborGraphProps {
   // height: number; // REMOVED
   onNodeClick: (node: GraphNode) => void;
   targetNodeId: string; // ID of the central node
-  legendItems?: LegendItem[]; // Update legendItems type
+  legendItems?: LegendItem[]; // Legend items now include color
 }
 
-// Helper function to truncate addresses
-const truncateAddress = (address: string) => {
-  if (!address || address.length < 10) return address;
-  return `${address.substring(0, 6)}...${address.substring(
-    address.length - 4
-  )}`;
-};
+// Removed unused truncateAddress helper
+// const truncateAddress = (address: string) => { ... };
 
 export function NeighborGraph({
   graphData,
   // width, // REMOVED
   // height, // REMOVED
   onNodeClick,
-  targetNodeId,
-  legendItems, // Destructure legendItems
+  // targetNodeId, // Don't destructure if not directly used
+  legendItems = [], // Provide default empty array for legendItems
 }: NeighborGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-  const [colors, setColors] = useState({
-    primary: "rgba(0, 0, 0, 1)", // Default black
-    chart1: "rgba(204, 204, 204, 1)", // Default light gray
-    chart2: "rgba(170, 170, 170, 1)", // Default mid-gray (added chart2)
-    chart3: "rgba(153, 153, 153, 1)", // Default gray
-    mutedFg: "rgba(170, 170, 170, 0.5)", // Default semi-transparent gray
-  });
+  // State to store *resolved* colors (RGBA strings)
+  const [resolvedColors, setResolvedColors] = useState<Record<string, string>>(
+    {}
+  );
 
   // @ts-expect-error 貌似与全局类型冲突
   const fgRef = useRef<ForceGraphMethods>();
   // const { resolvedTheme } = useTheme(); // REMOVED theme logic for now
 
-  // Effect to get computed CSS variable colors on mount
+  // Effect to get computed CSS variable colors for legend items
   useEffect(() => {
     const computedStyle = window.getComputedStyle(document.documentElement);
-    const primaryColorStr = computedStyle.getPropertyValue("--primary").trim();
-    const chart1ColorStr = computedStyle.getPropertyValue("--chart-1").trim();
-    const chart2ColorStr = computedStyle.getPropertyValue("--chart-2").trim(); // Get chart-2
-    const chart3ColorStr = computedStyle.getPropertyValue("--chart-3").trim();
-    const mutedFgColorStr = computedStyle
-      .getPropertyValue("--muted-foreground")
-      .trim();
+    const newResolvedColors: Record<string, string> = {};
 
-    // Helper to parse and format color, with fallback
-    const getRgbaColor = (colorStr: string, fallback: string): string => {
-      try {
-        const parsed = parse(colorStr); // culori parses oklch
-        if (parsed) {
-          const rgba = converter("rgb")(parsed); // Convert to rgb mode
-          return formatRgb(rgba); // formatRgb handles alpha channel
-        }
-      } catch (e) {
-        console.error(`[NeighborGraph] Failed to parse color: ${colorStr}`, e);
-      }
-      return fallback;
-    };
-
-    // Helper to parse and format color with specific alpha
-    const getRgbaColorWithAlpha = (
-      colorStr: string,
-      alpha: number,
+    const getRgbaColor = (
+      colorStr: string | undefined,
       fallback: string
     ): string => {
+      if (!colorStr) return fallback;
+      let parsedColor;
       try {
-        const parsed = parse(colorStr);
-        if (parsed) {
-          const rgba = converter("rgb")(parsed); // Convert to rgb mode
-          rgba.alpha = alpha; // Set alpha
+        // Check if it's already a valid color (like #rrggbb or rgba(...))
+        parsedColor = parse(colorStr); // Try parsing directly
+        if (parsedColor) return formatRgb(converter("rgb")(parsedColor));
+      } catch {
+        // Removed unused 'e'
+        /* Ignore parsing errors for non-CSS vars or invalid direct colors */
+      }
+
+      // Try resolving as CSS variable if direct parsing failed
+      try {
+        const cssVarValue = colorStr.startsWith("var(")
+          ? computedStyle.getPropertyValue(colorStr.slice(4, -1)).trim()
+          : colorStr; // If not var(), treat as potential direct color/name again
+
+        parsedColor = parse(cssVarValue); // culori parses oklch, hex, names etc.
+        if (parsedColor) {
+          const rgba = converter("rgb")(parsedColor);
           return formatRgb(rgba);
         }
-      } catch (e) {
+      } catch {
+        // Removed unused 'e'
         console.error(
-          `[NeighborGraph] Failed to parse color for alpha: ${colorStr}`,
-          e
+          `[NeighborGraph] Failed to parse/resolve CSS var or color name: ${colorStr}`
         );
       }
       return fallback;
     };
 
-    setColors({
-      primary: getRgbaColor(primaryColorStr, colors.primary),
-      chart1: getRgbaColor(chart1ColorStr, colors.chart1),
-      chart2: getRgbaColor(chart2ColorStr, colors.chart2),
-      chart3: getRgbaColor(chart3ColorStr, colors.chart3),
-      mutedFg: getRgbaColorWithAlpha(mutedFgColorStr, 0.5, colors.mutedFg),
+    legendItems.forEach((item) => {
+      if (item.color) {
+        newResolvedColors[item.type] = getRgbaColor(item.color, "#6b7280");
+      }
     });
 
-    console.log("[NeighborGraph] Resolved Colors (RGBA):", {
-      primary: getRgbaColor(primaryColorStr, colors.primary),
-      chart1: getRgbaColor(chart1ColorStr, colors.chart1),
-      chart2: getRgbaColor(chart2ColorStr, colors.chart2),
-      chart3: getRgbaColor(chart3ColorStr, colors.chart3),
-      mutedFg: getRgbaColorWithAlpha(mutedFgColorStr, 0.5, colors.mutedFg),
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // Also resolve the default muted foreground for links/text
+    const mutedFgColorStr = computedStyle
+      .getPropertyValue("--muted-foreground")
+      .trim();
+    newResolvedColors["mutedFg"] = getRgbaColor(
+      mutedFgColorStr,
+      "rgba(170, 170, 170, 0.5)"
+    );
+    // Resolve background for potential use
+    const bgColorStr = computedStyle.getPropertyValue("--background").trim();
+    newResolvedColors["background"] = getRgbaColor(bgColorStr, "#FFFFFF"); // Default white
+
+    setResolvedColors(newResolvedColors);
+
+    console.log(
+      "[NeighborGraph] Resolved Colors Map (RGBA):",
+      newResolvedColors
+    );
+  }, [legendItems]); // Re-run if legend items change
 
   useEffect(() => {
     // setIsMounted(true); // REMOVE setting isMounted
@@ -208,126 +201,128 @@ export function NeighborGraph({
     fgRef.current?.zoomToFit(400, 10);
   }, []);
 
-  // Create a memoized map from type to resolved color for legend
-  const legendColorMap = useMemo(
-    () => ({
-      target: colors.chart1,
-      tx: colors.chart1,
-      block: colors.chart1,
-      hop1: colors.chart2,
-      address: colors.chart2,
-      miner: colors.chart3,
-      hop2: colors.chart3,
-      default: "#6b7280", // Default fallback color
-    }),
-    [colors]
-  );
+  // REMOVE the old hardcoded legendColorMap
+  // const legendColorMap = useMemo(...);
 
+  // --- Revised getNodeColor using resolvedColors map ---
   const getNodeColor = useCallback(
     (node: NodeObject) => {
       const graphNode = node as GraphNode;
-      let nodeColor = "#6b7280"; // Default fallback gray, declare outside
-
-      // Direct mapping based on type, then fallback
-      switch (graphNode.type) {
-        case "target":
-        case "tx":
-        case "block": {
-          nodeColor = colors.chart1;
-          break;
-        }
-        case "hop1":
-        case "address": {
-          nodeColor = colors.chart2;
-          break;
-        }
-        case "miner": {
-          nodeColor = colors.chart3; // Ensure miner gets chart3
-          break;
-        }
-        case "hop2": {
-          nodeColor = colors.chart3;
-          break;
-        }
-        default: {
-          // Fallback based on val or id if type is missing
-          const nodeValue = graphNode.val || 0;
-          if (graphNode.id === targetNodeId || nodeValue === 8) {
-            nodeColor = colors.chart1;
-          } else if (nodeValue === 4) {
-            nodeColor = colors.chart2;
-          } else if (nodeValue === 2) {
-            nodeColor = colors.chart3;
-          }
-          // else nodeColor remains the default fallback gray
-          break;
-        }
-      }
-      return nodeColor;
+      return resolvedColors[graphNode.type || ""] || "#6b7280";
     },
-    [colors, targetNodeId] // Depend on colors and targetNodeId for fallback
+    [resolvedColors]
   );
 
-  const getLinkColor = useCallback(() => {
-    return colors.mutedFg;
-  }, [colors]);
+  // --- nodeCanvasObject: ONLY draw the node circle ---
+  const nodeCanvasObject = useCallback(
+    (node: NodeObject, ctx: CanvasRenderingContext2D, globalScale: number) => {
+      const graphNode = node as GraphNode;
+      // const label = graphNode.name || ""; // Label no longer needed here
+      // const fontSize = 12 / globalScale; // Font size no longer needed here
+      const nodeSize = Math.max(2, (graphNode.val || 4) / globalScale);
+      const nodeColor = getNodeColor(graphNode);
 
-  const getNodeLabel = useCallback((node: NodeObject) => {
-    return truncateAddress((node as GraphNode).id);
-  }, []);
+      // Draw ONLY the circle
+      ctx.beginPath();
+      ctx.arc(
+        graphNode.x || 0,
+        graphNode.y || 0,
+        nodeSize,
+        0,
+        2 * Math.PI,
+        false
+      );
+      ctx.fillStyle = nodeColor;
+      ctx.fill();
 
-  const getLinkLabel = useCallback((link: LinkObject) => {
-    return (link as GraphLink).label || "";
-  }, []);
+      // --- REMOVED label drawing logic ---
+      // if (globalScale > 0.5) { ... ctx.fillText ... }
+    },
+    [getNodeColor] // Only depends on getNodeColor now
+  );
+
+  // Render the graph only when dimensions are known and non-zero
+  const graphReady = dimensions.width > 0 && dimensions.height > 0;
 
   return (
-    <div ref={containerRef} className="w-full h-full relative">
-      {dimensions.width > 0 && dimensions.height > 0 ? (
-        <ForceGraph2D
-          ref={fgRef}
-          graphData={graphData}
-          width={dimensions.width}
-          height={dimensions.height}
-          nodeId="id"
-          nodeVal="val"
-          nodeLabel={getNodeLabel}
-          nodeColor={getNodeColor}
-          linkWidth={1}
-          linkColor={getLinkColor}
-          linkLabel={getLinkLabel}
-          linkDirectionalParticles={1}
-          linkDirectionalParticleWidth={2}
-          linkDirectionalParticleSpeed={0.01}
-          onNodeClick={handleNodeClick}
-          onEngineStop={handleEngineStop}
-          cooldownTicks={100}
-        />
-      ) : (
-        <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-          加载图表中...
+    <div
+      ref={containerRef}
+      style={{ width: "100%", height: "100%", position: "relative" }}
+    >
+      {/* Legend Display (Uses legendItems directly) */}
+      {legendItems && legendItems.length > 0 && (
+        <div
+          style={{
+            position: "absolute",
+            top: "10px",
+            right: "10px",
+            background:
+              resolvedColors["background"] || "rgba(255, 255, 255, 0.8)", // Use resolved background
+            padding: "8px",
+            borderRadius: "4px",
+            fontSize: "12px",
+            zIndex: 10,
+            border: `1px solid ${resolvedColors["mutedFg"] || "#ccc"}`, // Use resolved muted for border
+          }}
+        >
+          <div style={{ fontWeight: "bold", marginBottom: "4px" }}>图例</div>
+          {legendItems.map((item) => (
+            <div
+              key={item.type}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                marginBottom: "2px",
+              }}
+            >
+              <span
+                style={{
+                  display: "inline-block",
+                  width: "10px",
+                  height: "10px",
+                  borderRadius: "50%",
+                  backgroundColor: resolvedColors[item.type] || "#6b7280", // Use resolved color for swatch
+                  marginRight: "5px",
+                }}
+              ></span>
+              {item.label}
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Add Legend Overlay */}
-      {legendItems && legendItems.length > 0 && (
-        <div className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm border border-border rounded-md p-2 text-xs text-muted-foreground shadow-md">
-          <div className="font-semibold mb-1">图例</div>
-          {legendItems.map((item, index) => {
-            // Get color directly from the memoized map
-            const legendColor =
-              legendColorMap[item.type as keyof typeof legendColorMap] ||
-              legendColorMap.default;
-            return (
-              <div key={index} className="flex items-center space-x-1.5 mb-0.5">
-                <span
-                  className="inline-block w-2.5 h-2.5 rounded-full"
-                  style={{ backgroundColor: legendColor }} // Use color from map
-                ></span>
-                <span>{item.label}</span>
-              </div>
-            );
-          })}
-        </div>
+      {graphReady && (
+        <ForceGraph2D
+          ref={fgRef}
+          width={dimensions.width}
+          height={dimensions.height}
+          graphData={graphData}
+          nodeLabel="name"
+          nodeRelSize={4}
+          nodeVal="val"
+          nodeColor={getNodeColor}
+          nodeCanvasObject={nodeCanvasObject}
+          nodeCanvasObjectMode={() => "replace"}
+          linkWidth={(link) => (link as GraphLink).width || 1}
+          linkColor={(link) =>
+            (link as GraphLink).color ||
+            resolvedColors["mutedFg"] ||
+            "rgba(170, 170, 170, 0.5)"
+          }
+          linkDirectionalParticles={2}
+          linkDirectionalParticleWidth={2}
+          linkDirectionalParticleColor={(link) =>
+            (link as GraphLink).color ||
+            resolvedColors["mutedFg"] ||
+            "rgba(170, 170, 170, 0.5)"
+          }
+          onNodeClick={handleNodeClick}
+          onEngineStop={handleEngineStop}
+          cooldownTicks={100}
+          enableZoomInteraction={true}
+          enablePanInteraction={true}
+          enableNodeDrag={true}
+        />
       )}
     </div>
   );
