@@ -15,13 +15,46 @@ import { toChecksumAddress } from "@/lib/utils";
 import { ethers } from "ethers";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale";
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { BlockTxTable } from "@/feat/block/block-tx-table";
 import {
   NeighborGraph,
   GraphNode,
   GraphLink,
 } from "@/feat/graph/neighbor-graph";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { Components } from "react-markdown";
+
+// Define colors and MOCK data (copied from address page, consider extracting later)
+const BLOCK_NODE_COLOR = "hsl(var(--chart-1))";
+
+const MOCK_AI_STREAM_DATA = [
+  { type: "ai_content", content: "### 区块链区块分析报告 (Mock)\n\n" },
+  { type: "ai_content", content: "分析区块：`{blockNumber}`\n\n" }, // Placeholder for block
+  {
+    type: "ai_content",
+    content:
+      "| 特征         | 观察结果                   | 推测         |\n|--------------|--------------------------|--------------|\n",
+  },
+  {
+    type: "ai_content",
+    content: "| 交易数量     | 中等                     | 正常活动     |\n",
+  },
+  {
+    type: "ai_content",
+    content: "| Gas 使用率   | 较高                     | 可能拥堵     |\n",
+  },
+  {
+    type: "ai_content",
+    content: "| 特殊交易     | 包含 MEV 相关交易         | 机器人活动   |\n",
+  },
+  {
+    type: "ai_content",
+    content: "\n**总结:** 该区块显示出正常的网络活动，包含一些 MEV 行为。\n",
+  },
+  { type: "ai_end" },
+];
 
 export const Route = createFileRoute("/_details-layout/block/$blockNumber")({
   component: BlockDetailsComponent,
@@ -45,7 +78,12 @@ function BlockDetailsComponent() {
   const navigate = useNavigate();
   const blockNumberParam = params.blockNumber; // Get param as string first
   const [blockTxCurrentPage, setBlockTxCurrentPage] = useState(1);
-  const blockTxPageSize = 10;
+  const [blockTxPageSize, setBlockTxPageSize] = useState(10);
+
+  // Add AI Summary States
+  const [aiSummary, setAiSummary] = useState<string>("");
+  const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   // Perform parsing after getting the param
   const blockNumber = parseInt(blockNumberParam, 10);
@@ -88,6 +126,163 @@ function BlockDetailsComponent() {
   const isBlockGraphLoading = blockGraphQuery.isLoading;
   const isBlockGraphError = blockGraphQuery.isError;
   const blockGraphError = blockGraphQuery.error;
+
+  // --- AI 总结 SSE 请求 或 Mock (由环境变量控制) ---
+  useEffect(() => {
+    const isMockEnabled = import.meta.env.VITE_USE_MOCK_AI === "true";
+    console.log(
+      `Block AI Mock Mode ${
+        isMockEnabled ? "Enabled" : "Disabled"
+      } by environment variable.`
+    );
+
+    setAiSummary("");
+    setIsAiLoading(true);
+    setAiError(null);
+
+    let intervalId: NodeJS.Timeout | null = null;
+    let eventSource: EventSource | null = null;
+
+    if (isMockEnabled) {
+      console.log("Using Mock Block AI Summary for:", blockNumber);
+      let chunkIndex = 0;
+      intervalId = setInterval(() => {
+        if (chunkIndex >= MOCK_AI_STREAM_DATA.length) {
+          clearInterval(intervalId!);
+          setIsAiLoading(false);
+          return;
+        }
+        const chunk = MOCK_AI_STREAM_DATA[chunkIndex];
+        if (chunk.type === "ai_content" && typeof chunk.content === "string") {
+          // Replace placeholder
+          const content = chunk.content.replace(
+            "{blockNumber}",
+            String(blockNumber)
+          );
+          setAiSummary((prev) => prev + content);
+        } else if (chunk.type === "ai_end") {
+          clearInterval(intervalId!);
+          setIsAiLoading(false);
+        }
+        chunkIndex++;
+      }, 150);
+    } else {
+      console.log("Requesting Real Block AI Summary for:", blockNumber);
+      // Adjust endpoint for block analysis
+      eventSource = new EventSource(`/api/ai/analyze/block/${blockNumber}`);
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "ai_end") {
+            setIsAiLoading(false);
+            eventSource?.close();
+            return;
+          }
+          if (data.type === "ai_content") {
+            setAiSummary((prev) => prev + data.content);
+          }
+        } catch (error) {
+          console.error("Error parsing SSE message:", error);
+        }
+      };
+
+      eventSource.onerror = (error) => {
+        console.error("SSE Error:", error);
+        if (eventSource && aiSummary.trim() === "") {
+          setAiError("加载 AI 分析时出错，请稍后重试。");
+        }
+        setIsAiLoading(false);
+        eventSource?.close();
+      };
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+      if (eventSource) eventSource.close();
+      setIsAiLoading(false);
+    };
+  }, [blockNumber]); // Depend on blockNumber
+
+  // --- 定义 Markdown 组件映射 (Copied, consider extracting) ---
+  const markdownComponents = useMemo<Partial<Components>>(
+    () => ({
+      table: ({ ...props }) => (
+        <table
+          className="w-full my-4 border-collapse border border-slate-400 dark:border-slate-500"
+          {...props}
+        />
+      ),
+      thead: ({ ...props }) => (
+        <thead className="bg-slate-100 dark:bg-slate-800" {...props} />
+      ),
+      tbody: ({ ...props }) => <tbody {...props} />,
+      tr: ({ ...props }) => (
+        <tr
+          className="border-b border-slate-200 dark:border-slate-700"
+          {...props}
+        />
+      ),
+      th: ({ ...props }) => (
+        <th
+          className="border border-slate-300 dark:border-slate-600 p-2 text-left font-semibold"
+          {...props}
+        />
+      ),
+      td: ({ ...props }) => (
+        <td
+          className="border border-slate-300 dark:border-slate-600 p-2 align-top"
+          {...props}
+        />
+      ),
+      a: ({ href, ...props }) => {
+        if (href && (href.startsWith("http") || href.startsWith("//"))) {
+          return (
+            <a
+              href={href}
+              className="text-primary hover:underline"
+              target="_blank"
+              rel="noopener noreferrer"
+              {...props}
+            />
+          );
+        }
+        const potentialHash = props.children;
+        if (
+          typeof potentialHash === "string" &&
+          potentialHash.startsWith("0x")
+        ) {
+          try {
+            const checksumAddr = toChecksumAddress(potentialHash);
+            return (
+              <Link
+                to="/address/$hash"
+                params={{ hash: checksumAddr }}
+                className="text-primary hover:underline"
+                {...props}
+              />
+            );
+          } catch {
+            console.warn(
+              "Markdown link looks like address but failed checksum:",
+              potentialHash
+            );
+            return (
+              <a
+                href={href}
+                className="text-primary hover:underline"
+                {...props}
+              />
+            );
+          }
+        }
+        return (
+          <a href={href} className="text-primary hover:underline" {...props} />
+        );
+      },
+    }),
+    []
+  );
 
   // --- Graph Data Transformation (MUST be called before early returns) ---
   const blockInfo = blockInfoData?.data; // 获取 blockInfo
@@ -241,8 +436,27 @@ function BlockDetailsComponent() {
 
   return (
     <div key={blockNumber} className="space-y-6">
-      {" "}
-      {/* Add key={blockNumber} */}
+      {/* Add AI Summary Card */}
+      <Card className="col-span-1 md:col-span-1 min-h-[200px]">
+        <CardHeader>
+          <CardTitle>AI 总结</CardTitle>
+        </CardHeader>
+        <CardContent className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap">
+          {isAiLoading && aiSummary === "" && (
+            <p className="text-muted-foreground">正在分析中，请稍候...</p>
+          )}
+          {aiError && <p className="text-destructive">{aiError}</p>}
+          {!isAiLoading && !aiError && aiSummary === "" && (
+            <p className="text-muted-foreground">暂无 AI 分析结果。</p>
+          )}
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={markdownComponents}
+          >
+            {aiSummary}
+          </ReactMarkdown>
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle>区块 #{blockNumber} 详情</CardTitle>
