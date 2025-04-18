@@ -12,6 +12,7 @@ import {
   ExternalNeighborQueryResult,
 } from "@/types/transaction";
 import axios from "axios";
+import { BlockGraphContentResponse } from "@/types/graph-types";
 
 export const apiClient = axios.create({
   baseURL: "/api",
@@ -191,5 +192,13 @@ export const getInternalNeighbors = async ({
   return apiClient.post<ExternalNeighborQueryResult>(
     `/graph/neighbors/internal`, // Target the internal endpoint
     payload
+  );
+};
+
+// --- Block Graph Content API ---
+export const getBlockGraphContent = async (block_number: number) => {
+  console.log(`Fetching block graph content for block: ${block_number}`);
+  return apiClient.get<BlockGraphContentResponse>(
+    `/graph/block/${block_number}/content`
   );
 };

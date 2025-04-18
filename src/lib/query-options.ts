@@ -17,6 +17,7 @@ import {
   GetExternalNeighborsParams,
   getInternalNeighbors,
   GetInternalNeighborsParams,
+  getBlockGraphContent,
 } from "./api";
 
 export const searchQueryOptions = ({ query, limit }: SearchParams) => {
@@ -162,5 +163,13 @@ export const internalNeighborsQueryOptions = ({
         base_hop2_limit,
         max_hop2_limit,
       }),
+  });
+};
+
+// --- Query Options for Block Graph Content ---
+export const blockGraphContentQueryOptions = (block_number: number) => {
+  return queryOptions({
+    queryKey: ["block-graph-content", block_number],
+    queryFn: () => getBlockGraphContent(block_number),
   });
 };

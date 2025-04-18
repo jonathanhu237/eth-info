@@ -1,6 +1,7 @@
 import {
   getBlockInfoQueryOptions,
   getBlockTxQueryOptions,
+  blockGraphContentQueryOptions,
 } from "@/lib/query-options";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
@@ -9,8 +10,9 @@ import { toChecksumAddress } from "@/lib/utils";
 import { ethers } from "ethers";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale";
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { BlockTxTable } from "@/feat/block/block-tx-table";
+import { NeighborGraph, GraphNode } from "@/feat/graph/neighbor-graph";
 
 export const Route = createFileRoute("/_details-layout/block/$blockNumber")({
   component: BlockDetailsComponent,
@@ -38,6 +40,11 @@ function BlockDetailsComponent() {
   // Perform parsing after getting the param
   const blockNumber = parseInt(blockNumberParam, 10);
 
+  // Define graph click handler early
+  const handleBlockGraphNodeClick = useCallback(() => {
+    // No-op for now, can add navigation later if needed
+  }, []);
+
   // Fetch block info, use a placeholder queryKey if blockNumber is NaN initially
   // This query will be disabled if blockNumber is NaN
   const { data: blockInfoData, isError: isBlockInfoError } = useSuspenseQuery({
@@ -54,6 +61,45 @@ function BlockDetailsComponent() {
     // Enable only if block number is valid AND block info has potentially loaded
     enabled: !isNaN(blockNumber), // Enable if block number is valid
   });
+
+  // Fetch block graph content
+  const blockGraphQuery = useQuery({
+    ...blockGraphContentQueryOptions(blockNumber), // Use -1 if NaN already handled
+    enabled: !isNaN(blockNumber),
+  });
+  const blockGraphApiData = blockGraphQuery.data?.data;
+  const isBlockGraphLoading = blockGraphQuery.isLoading;
+  const isBlockGraphError = blockGraphQuery.isError;
+  const blockGraphError = blockGraphQuery.error;
+
+  // --- Graph Data Transformation (MUST be called before early returns) ---
+  const blockGraphData = useMemo(() => {
+    const nodes: GraphNode[] = [];
+    let targetNodeId = "";
+
+    // Check apiData exists before mapping
+    if (blockGraphApiData?.nodes) {
+      blockGraphApiData.nodes.forEach((apiNode) => {
+        const isTarget = apiNode.label === "Block";
+        nodes.push({
+          id: apiNode.id,
+          name: `${apiNode.label}${isTarget ? " #" + blockNumber : ""}`, // Add block number to label
+          val: isTarget ? 8 : 4, // Use val for coloring via NeighborGraph logic
+          // color is handled dynamically in NeighborGraph
+        });
+        if (isTarget) {
+          targetNodeId = apiNode.id; // Capture the target node ID
+        }
+      });
+    } else {
+      // Handle case where apiData is null/undefined, return empty graph
+      console.warn(
+        "[BlockDetails] blockGraphApiData is null/undefined during memoization."
+      );
+    }
+
+    return { nodes, links: [], targetNodeId }; // Return links as empty array and targetNodeId
+  }, [blockGraphApiData, blockNumber]);
 
   // ---- Now perform checks and early returns ----
   if (isNaN(blockNumber)) {
@@ -128,6 +174,45 @@ function BlockDetailsComponent() {
           <DetailItem label="Nonce" value={blockInfo.nonce} isMono />
           <DetailItem label="难度" value={blockInfo.difficulty} />
           <DetailItem label="大小" value={`${blockInfo.size} bytes`} />
+        </CardContent>
+      </Card>
+      {/* Block Graph Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle>区块内容图</CardTitle>
+        </CardHeader>
+        <CardContent className="relative h-[400px] p-0">
+          {" "}
+          {/* Fixed height for graph */}
+          {isBlockGraphLoading && (
+            <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
+              加载区块内容图中...
+            </div>
+          )}
+          {isBlockGraphError && (
+            <div className="absolute inset-0 flex items-center justify-center text-center text-destructive p-4">
+              加载区块内容图失败: {blockGraphError?.message}
+            </div>
+          )}
+          {!isBlockGraphLoading &&
+            !isBlockGraphError &&
+            blockGraphData.nodes.length === 0 && (
+              <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
+                未找到区块内容图数据。
+              </div>
+            )}
+          {!isBlockGraphLoading &&
+            !isBlockGraphError &&
+            blockGraphData.nodes.length > 0 && (
+              <NeighborGraph
+                graphData={{
+                  nodes: blockGraphData.nodes,
+                  links: blockGraphData.links,
+                }}
+                targetNodeId={blockGraphData.targetNodeId}
+                onNodeClick={handleBlockGraphNodeClick} // Use the memoized handler
+              />
+            )}
         </CardContent>
       </Card>
       {/* 渲染区块交易表格 */}
