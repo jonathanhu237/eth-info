@@ -15,6 +15,8 @@ import {
   getBlockTx,
   getExternalNeighbors,
   GetExternalNeighborsParams,
+  getInternalNeighbors,
+  GetInternalNeighborsParams,
 } from "./api";
 
 export const searchQueryOptions = ({ query, limit }: SearchParams) => {
@@ -116,6 +118,43 @@ export const externalNeighborsQueryOptions = ({
     ],
     queryFn: () =>
       getExternalNeighbors({
+        target_address,
+        interactions_context,
+        busy_threshold,
+        block_window,
+        base_hop2_limit,
+        max_hop2_limit,
+      }),
+  });
+};
+
+// --- Query Options for Internal Neighbors ---
+export const internalNeighborsQueryOptions = ({
+  target_address,
+  interactions_context,
+  busy_threshold,
+  block_window,
+  base_hop2_limit,
+  max_hop2_limit,
+}: GetInternalNeighborsParams) => {
+  const contextKey = JSON.stringify(
+    interactions_context
+      .map((c) => `${c.b_address}-${c.t1_block_number}`)
+      .sort()
+  );
+
+  return queryOptions({
+    queryKey: [
+      "internal-neighbors",
+      target_address,
+      contextKey,
+      busy_threshold,
+      block_window,
+      base_hop2_limit,
+      max_hop2_limit,
+    ],
+    queryFn: () =>
+      getInternalNeighbors({
         target_address,
         interactions_context,
         busy_threshold,

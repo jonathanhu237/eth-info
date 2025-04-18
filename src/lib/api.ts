@@ -161,3 +161,35 @@ export const getExternalNeighbors = async ({
     payload // Send the constructed payload
   );
 };
+
+// --- Internal Neighbors API (Assuming similar structure) ---
+export type GetInternalNeighborsParams = GetExternalNeighborsParams; // Reuse type for now
+
+export const getInternalNeighbors = async ({
+  target_address,
+  interactions_context,
+  busy_threshold = 1000,
+  block_window = 6,
+  base_hop2_limit = 10,
+  max_hop2_limit = 50,
+}: GetInternalNeighborsParams) => {
+  // Log the exact payload being sent
+  const payload = {
+    target_address,
+    interactions_context,
+    busy_threshold,
+    block_window,
+    base_hop2_limit,
+    max_hop2_limit,
+  };
+  console.log(
+    "Frontend API Call Payload (/graph/neighbors/internal):",
+    JSON.stringify(payload, null, 2)
+  );
+
+  // Assuming ExternalNeighborQueryResult structure is reused, adjust if needed
+  return apiClient.post<ExternalNeighborQueryResult>(
+    `/graph/neighbors/internal`, // Target the internal endpoint
+    payload
+  );
+};

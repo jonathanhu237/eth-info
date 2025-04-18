@@ -8,6 +8,7 @@ import {
   addressInfoQueryOptions,
   addressInternalTxQueryOptions,
   externalNeighborsQueryOptions,
+  internalNeighborsQueryOptions,
 } from "@/lib/query-options";
 import {
   AddressExternalTxQuery,
@@ -83,6 +84,12 @@ function AddressDetailsComponent() {
   const isLoading = currentQuery.isLoading;
   const isFetching = currentQuery.isFetching; // 用于显示分页加载状态
 
+  const internalTransactions = internalTxQuery.data?.data?.transactions; // Get internal txs
+  console.log(
+    "Internal Transactions (1st Hop Data Source):",
+    internalTransactions
+  );
+
   // 使用当前类型的 totalTransactions 计算 pageCount
   const pageCount = Math.ceil((totalTransactions ?? 0) / pageSize);
 
@@ -116,7 +123,34 @@ function AddressDetailsComponent() {
       })
       .filter((ctx): ctx is ExternalNeighborInteractionContext => ctx !== null); // 类型守卫过滤 null
   }, [externalTransactions, hash]);
-  console.log("Interactions Context for 2nd Hop Query:", interactionsContext);
+  console.log(
+    "External Interactions Context for 2nd Hop Query:",
+    interactionsContext
+  );
+
+  // --- 构建内部交易二跳查询的 context ---
+  const internalInteractionsContext = useMemo<
+    ExternalNeighborInteractionContext[] // Reuse type for now
+  >(() => {
+    if (!internalTransactions) return [];
+    return internalTransactions
+      .map((tx) => {
+        const from = toChecksumAddress(tx.from_address);
+        const to = toChecksumAddress(tx.to_address);
+        if (!to || from === to) return null;
+        const neighbor = from === toChecksumAddress(hash) ? to : from;
+        if (neighbor === toChecksumAddress(hash)) return null;
+        return {
+          b_address: neighbor.toLowerCase(), // Ensure lowercase
+          t1_block_number: tx.block_number,
+        };
+      })
+      .filter((ctx): ctx is ExternalNeighborInteractionContext => ctx !== null);
+  }, [internalTransactions, hash]);
+  console.log(
+    "Internal Interactions Context for 2nd Hop Query:",
+    internalInteractionsContext
+  );
 
   // --- 二跳邻居查询 ---
   const isNeighborQueryEnabled =
@@ -143,13 +177,76 @@ function AddressDetailsComponent() {
     neighborData
   ); // Update log message
 
-  // --- 数据转换为图形格式 ...
+  // --- 外部二跳邻居查询 ---
+  const isExternalNeighborQueryEnabled =
+    selectedTxType === "external" &&
+    externalTxQuery.isSuccess &&
+    interactionsContext.length > 0;
+  console.log(
+    "Is External Neighbor Query Enabled?",
+    isExternalNeighborQueryEnabled
+  );
+
+  const externalNeighborsQueryHook = useQuery({
+    ...externalNeighborsQueryOptions({
+      target_address: hash.toLowerCase(),
+      interactions_context: interactionsContext,
+      base_hop2_limit: 10,
+      max_hop2_limit: 50,
+      busy_threshold: 1000,
+      block_window: 6,
+    }),
+    enabled: isExternalNeighborQueryEnabled,
+  });
+  const externalNeighborData = externalNeighborsQueryHook.data?.data;
+  console.log(
+    "External Neighbor Query Status:",
+    externalNeighborsQueryHook.status
+  );
+  console.log("External Neighbor Data:", externalNeighborData);
+
+  // --- 内部二跳邻居查询 ---
+  const isInternalNeighborQueryEnabled =
+    selectedTxType === "internal" &&
+    internalTxQuery.isSuccess &&
+    internalInteractionsContext.length > 0;
+  console.log(
+    "Is Internal Neighbor Query Enabled?",
+    isInternalNeighborQueryEnabled
+  );
+
+  const internalNeighborsQuery = useQuery({
+    ...internalNeighborsQueryOptions({
+      target_address: hash.toLowerCase(),
+      interactions_context: internalInteractionsContext,
+      base_hop2_limit: 10,
+      max_hop2_limit: 50,
+      busy_threshold: 1000,
+      block_window: 6,
+    }),
+    enabled: isInternalNeighborQueryEnabled,
+  });
+  const internalNeighborData = internalNeighborsQuery.data?.data;
+  console.log("Internal Neighbor Query Status:", internalNeighborsQuery.status);
+  console.log("Internal Neighbor Data:", internalNeighborData);
+
+  // --- 数据转换为图形格式 (根据 selectedTxType 动态选择数据源) ---
   const graphData = useMemo(() => {
-    // ... (graph data generation logic)
-    // Ensure nodes Map usage is correct
     const nodes = new Map<string, GraphNode>();
     const links: GraphLink[] = [];
     const targetChecksum = toChecksumAddress(hash);
+
+    // Determine data sources based on selected type
+    const firstHopTxs =
+      selectedTxType === "external"
+        ? externalTransactions
+        : internalTransactions;
+    const secondHopData =
+      selectedTxType === "external"
+        ? externalNeighborData
+        : internalNeighborData;
+
+    // Target Node
     nodes.set(targetChecksum, {
       id: targetChecksum,
       name: targetChecksum,
@@ -157,38 +254,41 @@ function AddressDetailsComponent() {
       color: "hsl(var(--primary))",
     });
 
-    if (transactions) {
-      transactions.forEach((tx) => {
+    // First Hop Nodes & Links
+    if (firstHopTxs) {
+      firstHopTxs.forEach((tx) => {
         const from = toChecksumAddress(tx.from_address);
         const to = toChecksumAddress(tx.to_address);
-        // Skip self-loops or invalid 'to'
         if (!to || from === to) return;
         const neighbor = from === targetChecksum ? to : from;
-        if (neighbor === targetChecksum) return; // Should not happen if 'to' is checked, but safety first
+        if (neighbor === targetChecksum) return;
 
         if (!nodes.has(neighbor)) {
           nodes.set(neighbor, {
             id: neighbor,
             name: neighbor,
             val: 4,
+            // Color handled by NeighborGraph component
           });
         }
         links.push({
           source: targetChecksum,
           target: neighbor,
-          label: `${ethers.formatEther(tx.value_raw)} ETH`,
+          label: `${ethers.formatEther(tx.value_raw)} ETH`, // TODO: Adjust label for internal tx if needed
         });
       });
     }
 
-    if (neighborData) {
-      neighborData.forEach((hop) => {
+    // Second Hop Nodes & Links
+    if (secondHopData) {
+      secondHopData.forEach((hop) => {
         const hop1Address = toChecksumAddress(hop.b_address_string);
         if (!nodes.has(hop1Address)) {
           nodes.set(hop1Address, {
             id: hop1Address,
             name: hop1Address,
             val: 4,
+            // Color handled by NeighborGraph component
           });
         }
         hop.second_hop_links.forEach((link) => {
@@ -202,12 +302,17 @@ function AddressDetailsComponent() {
               id: hop2Address,
               name: hop2Address,
               val: 2,
+              // Color handled by NeighborGraph component
             });
           }
           links.push({
             source: hop1Address,
             target: hop2Address,
-            label: `Tx: ${link.transaction.hash.substring(0, 8)}...`,
+            label: `Tx: ${
+              link.transaction.hash
+                ? link.transaction.hash.substring(0, 8) + "..."
+                : "N/A"
+            }`,
           });
         });
       });
@@ -217,7 +322,14 @@ function AddressDetailsComponent() {
       links,
     });
     return { nodes: Array.from(nodes.values()), links };
-  }, [hash, transactions, neighborData]);
+  }, [
+    hash,
+    selectedTxType,
+    externalTransactions,
+    internalTransactions,
+    externalNeighborData,
+    internalNeighborData,
+  ]); // Add dependencies
 
   const handleGraphNodeClick = useCallback(
     (node: GraphNode) => {
@@ -249,72 +361,119 @@ function AddressDetailsComponent() {
         {" "}
         {/* 保持 flex-col */}
         <CardHeader className="pb-2">
-          <CardTitle>邻居关系图 (外部交易)</CardTitle>
+          <CardTitle>
+            邻居关系图 ({selectedTxType === "external" ? "外部" : "内部"}交易)
+          </CardTitle>
         </CardHeader>
         <CardContent className="relative flex-1 p-0">
           {" "}
           {/* 保持 flex-1 */}
-          {/* Loading/Error/Empty States (保持不变) */}
-          {selectedTxType !== "external" && (
-            <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
-              请切换到外部交易查看关系图
-            </div>
+          {/* Loading/Error/Empty States (Adapt based on selectedTxType) */}
+          {/* --- External States --- */}
+          {selectedTxType === "external" && (
+            <>
+              {externalTxQuery.isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
+                  加载外部一跳邻居中...
+                </div>
+              )}
+              {externalTxQuery.isSuccess &&
+                interactionsContext.length === 0 &&
+                !externalNeighborsQueryHook.isFetching && (
+                  <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
+                    当前页面无外部交易可用于分析邻居
+                  </div>
+                )}
+              {externalTxQuery.isSuccess &&
+                interactionsContext.length > 0 &&
+                externalNeighborsQueryHook.isLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
+                    加载外部二跳邻居中...
+                  </div>
+                )}
+              {externalNeighborsQueryHook.isError && (
+                <div className="absolute inset-0 flex items-center justify-center text-center text-destructive p-4">
+                  加载外部二跳邻居失败:{" "}
+                  {externalNeighborsQueryHook.error.message}
+                </div>
+              )}
+              {/* No substantial external data state */}
+              {externalTxQuery.isSuccess &&
+                !externalNeighborsQueryHook.isLoading &&
+                !externalNeighborsQueryHook.isError &&
+                interactionsContext.length > 0 &&
+                !externalNeighborData?.length &&
+                graphData.nodes.length > 1 && (
+                  <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
+                    仅显示一跳邻居 (未找到相关的外部二跳邻居数据)
+                  </div>
+                )}
+            </>
           )}
-          {selectedTxType === "external" && externalTxQuery.isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
-              加载一跳邻居中...
-            </div>
+          {/* --- Internal States --- */}
+          {selectedTxType === "internal" && (
+            <>
+              {internalTxQuery.isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
+                  加载内部一跳邻居中...
+                </div>
+              )}
+              {internalTxQuery.isSuccess &&
+                internalInteractionsContext.length === 0 &&
+                !internalNeighborsQuery.isFetching && (
+                  <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
+                    当前页面无内部交易可用于分析邻居
+                  </div>
+                )}
+              {internalTxQuery.isSuccess &&
+                internalInteractionsContext.length > 0 &&
+                internalNeighborsQuery.isLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
+                    加载内部二跳邻居中...
+                  </div>
+                )}
+              {internalNeighborsQuery.isError && (
+                <div className="absolute inset-0 flex items-center justify-center text-center text-destructive p-4">
+                  加载内部二跳邻居失败: {internalNeighborsQuery.error.message}
+                </div>
+              )}
+              {/* No substantial internal data state */}
+              {internalTxQuery.isSuccess &&
+                !internalNeighborsQuery.isLoading &&
+                !internalNeighborsQuery.isError &&
+                internalInteractionsContext.length > 0 &&
+                !internalNeighborData?.length &&
+                graphData.nodes.length > 1 && (
+                  <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
+                    仅显示一跳邻居 (未找到相关的内部二跳邻居数据)
+                  </div>
+                )}
+            </>
           )}
-          {selectedTxType === "external" &&
-            externalTxQuery.isSuccess &&
-            interactionsContext.length === 0 &&
-            !externalNeighborsQuery.isFetching && (
-              <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
-                当前页面无外部交易可用于分析邻居
-              </div>
-            )}
-          {selectedTxType === "external" &&
-            externalTxQuery.isSuccess &&
-            interactionsContext.length > 0 &&
-            externalNeighborsQuery.isLoading && (
-              <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
-                加载二跳邻居中...
-              </div>
-            )}
-          {selectedTxType === "external" && externalNeighborsQuery.isError && (
-            <div className="absolute inset-0 flex items-center justify-center text-center text-destructive p-4">
-              加载二跳邻居失败
-            </div>
-          )}
-          {/* Graph Rendering - NeighborGraph 内部会动态获取尺寸 */}
-          {selectedTxType === "external" &&
-            externalTxQuery.isSuccess &&
+          {/* --- Common States (No data / Graph display) --- */}
+          {/* Graph Rendering - Renders if data is available for the selected type */}
+          {((selectedTxType === "external" && externalTxQuery.isSuccess) ||
+            (selectedTxType === "internal" && internalTxQuery.isSuccess)) &&
             graphData.nodes.length > 1 && (
               <NeighborGraph
-                graphData={graphData}
+                graphData={graphData} // graphData is now dynamic
                 onNodeClick={handleGraphNodeClick}
                 targetNodeId={toChecksumAddress(hash)}
               />
             )}
-          {/* No substantial data state (保持不变) */}
-          {selectedTxType === "external" &&
+          {/* No graph data available for selected type (after loading & no errors) */}
+          {((selectedTxType === "external" &&
             externalTxQuery.isSuccess &&
-            !externalNeighborsQuery.isLoading &&
-            !externalNeighborsQuery.isError &&
-            interactionsContext.length > 0 &&
-            !neighborData?.length &&
-            graphData.nodes.length > 1 && (
-              <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
-                仅显示一跳邻居 (未找到相关的二跳邻居数据)
-              </div>
-            )}
-          {selectedTxType === "external" &&
-            externalTxQuery.isSuccess &&
-            !externalNeighborsQuery.isLoading &&
-            !externalNeighborsQuery.isError &&
+            !externalNeighborsQueryHook.isLoading &&
+            !externalNeighborsQueryHook.isError) ||
+            (selectedTxType === "internal" &&
+              internalTxQuery.isSuccess &&
+              !internalNeighborsQuery.isLoading &&
+              !internalNeighborsQuery.isError)) &&
             graphData.nodes.length <= 1 && (
               <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
-                未找到足够的邻居数据来生成图形
+                未找到足够的邻居数据来生成图形 (
+                {selectedTxType === "external" ? "外部" : "内部"})
               </div>
             )}
         </CardContent>
