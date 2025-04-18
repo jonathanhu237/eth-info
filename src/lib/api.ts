@@ -218,9 +218,9 @@ export interface GetTxNeighborsParams {
 export const getTxNeighbors = async ({
   tx_hash,
   busy_threshold = 1000,
-  block_window = 6,
-  base_hop2_limit = 10,
-  max_hop2_limit = 50,
+  block_window = 60,
+  base_hop2_limit = 20,
+  max_hop2_limit = 100,
 }: GetTxNeighborsParams) => {
   console.log(`Fetching tx neighbors for hash: ${tx_hash}`);
   return apiClient.get<TxNeighborResponse>(
