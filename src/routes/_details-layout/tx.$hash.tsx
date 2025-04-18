@@ -1,6 +1,7 @@
 import {
   transactionQueryOptions,
   txInternalTxQueryOptions,
+  txNeighborsQueryOptions,
 } from "@/lib/query-options";
 import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -10,8 +11,13 @@ import { ethers } from "ethers";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { Textarea } from "@/components/ui/textarea";
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { TxInternalTxTable } from "@/feat/tx/tx-internal-tx-table";
+import {
+  NeighborGraph,
+  GraphNode,
+  GraphLink,
+} from "@/feat/graph/neighbor-graph";
 
 export const Route = createFileRoute("/_details-layout/tx/$hash")({
   component: TransactionDetailsComponent,
@@ -28,6 +34,11 @@ function TransactionDetailsComponent() {
 
   const [internalTxCurrentPage, setInternalTxCurrentPage] = useState(1);
   const internalTxPageSize = 10;
+
+  // Define graph click handler early
+  const handleTxGraphNodeClick = useCallback(() => {
+    // No-op for now
+  }, []);
 
   const internalTxQuery = useQuery({
     ...txInternalTxQueryOptions({
@@ -71,6 +82,114 @@ function TransactionDetailsComponent() {
       return "N/A";
     }
   };
+
+  // --- Fetch Transaction Neighbors ---
+  const txNeighborsQuery = useQuery({
+    ...txNeighborsQueryOptions({
+      tx_hash: hash,
+      // Use default limits/params for now
+    }),
+    enabled: !!tx, // Enable only if the main tx data is loaded
+  });
+  const txNeighborApiData = txNeighborsQuery.data?.data;
+  const isTxNeighborLoading = txNeighborsQuery.isLoading;
+  const isTxNeighborError = txNeighborsQuery.isError;
+  const txNeighborError = txNeighborsQuery.error;
+
+  // --- Transform Tx Neighbor Data for Graph ---
+  const txGraphData = useMemo(() => {
+    const nodes = new Map<string, GraphNode>();
+    const links = new Map<string, GraphLink>(); // Use Map for links to easily avoid duplicates
+    const targetNodeId = `tx:${hash}`; // Use a unique ID prefix for the tx node
+
+    // 1. Add Target Transaction Node
+    if (!nodes.has(targetNodeId)) {
+      nodes.set(targetNodeId, {
+        id: targetNodeId,
+        name: `Tx: ${hash.substring(0, 8)}...`,
+        val: 8, // Central node value
+        // Color handled by NeighborGraph component
+      });
+    }
+
+    // Check if txNeighborApiData is an array and has elements
+    if (Array.isArray(txNeighborApiData) && txNeighborApiData.length > 0) {
+      // Iterate over each context in the response array
+      txNeighborApiData.forEach((txContext) => {
+        if (!txContext?.b_address_string) return; // Skip if context or address is missing
+
+        const hop1Address = toChecksumAddress(txContext.b_address_string);
+        const hop1NodeId = hop1Address; // Use address as ID for first hop node
+
+        // 2. Add First Hop Node (b_address_string)
+        if (!nodes.has(hop1NodeId)) {
+          nodes.set(hop1NodeId, {
+            id: hop1NodeId,
+            name: hop1Address,
+            val: 4, // 1st hop value
+            // Color handled by NeighborGraph component
+          });
+        }
+
+        // 3. Link Target Tx -> First Hop Address (avoid duplicates)
+        const linkIdTxToHop1 = `${targetNodeId}->${hop1NodeId}`;
+        if (!links.has(linkIdTxToHop1)) {
+          links.set(linkIdTxToHop1, {
+            source: targetNodeId,
+            target: hop1NodeId,
+            label: "interacts",
+          }); // Add simple label
+        }
+
+        // 4. Add Second Hop Nodes and Links
+        if (Array.isArray(txContext.second_hop_links)) {
+          txContext.second_hop_links.forEach((link) => {
+            if (!link?.neighbor_address?.address) return; // Skip if neighbor address missing
+
+            const hop2Address = toChecksumAddress(
+              link.neighbor_address.address
+            );
+            const hop2NodeId = hop2Address; // Use address as ID for second hop node
+
+            // Avoid linking node to itself or back to the target Tx (implicitly via b_address)
+            if (hop2Address === hop1Address) return;
+
+            // Add Second Hop Node
+            if (!nodes.has(hop2NodeId)) {
+              nodes.set(hop2NodeId, {
+                id: hop2NodeId,
+                name: hop2Address,
+                val: 2, // 2nd hop value
+                // Color handled by NeighborGraph component
+              });
+            }
+
+            // Link First Hop Address -> Second Hop Address (avoid duplicates)
+            const linkIdHop1ToHop2 = `${hop1NodeId}->${hop2NodeId}`;
+            if (!links.has(linkIdHop1ToHop2)) {
+              links.set(linkIdHop1ToHop2, {
+                source: hop1NodeId,
+                target: hop2NodeId,
+                label: `Tx: ${
+                  link.transaction.hash
+                    ? link.transaction.hash.substring(0, 8) + "..."
+                    : "N/A"
+                }`,
+              });
+            }
+          });
+        }
+      });
+    }
+
+    // Pass targetNodeId separately if NeighborGraph needs it explicitly for initial focus/styling
+    // It's already included in the nodes Map
+    return {
+      nodes: Array.from(nodes.values()),
+      links: Array.from(links.values()),
+      targetNodeId,
+    };
+  }, [txNeighborApiData, hash]);
 
   if (!tx) {
     return <div>交易信息加载失败或不存在。</div>;
@@ -137,6 +256,46 @@ function TransactionDetailsComponent() {
           <DetailItem label="Input 数据">
             <Textarea readOnly value={tx.input} className="resize-none" />
           </DetailItem>
+        </CardContent>
+      </Card>
+
+      {/* Transaction Neighbor Graph Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle>交易相关邻居图</CardTitle>
+        </CardHeader>
+        <CardContent className="relative h-[400px] p-0">
+          {" "}
+          {/* Fixed height */}
+          {isTxNeighborLoading && (
+            <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
+              加载交易邻居图中...
+            </div>
+          )}
+          {isTxNeighborError && (
+            <div className="absolute inset-0 flex items-center justify-center text-center text-destructive p-4">
+              加载交易邻居图失败: {txNeighborError?.message}
+            </div>
+          )}
+          {!isTxNeighborLoading &&
+            !isTxNeighborError &&
+            txGraphData.nodes.length <= 1 && ( // Check if only target node exists
+              <div className="absolute inset-0 flex items-center justify-center text-center text-muted-foreground p-4">
+                未找到相关的邻居数据。
+              </div>
+            )}
+          {!isTxNeighborLoading &&
+            !isTxNeighborError &&
+            txGraphData.nodes.length > 1 && (
+              <NeighborGraph
+                graphData={{
+                  nodes: txGraphData.nodes,
+                  links: txGraphData.links,
+                }}
+                targetNodeId={txGraphData.targetNodeId}
+                onNodeClick={handleTxGraphNodeClick}
+              />
+            )}
         </CardContent>
       </Card>
 

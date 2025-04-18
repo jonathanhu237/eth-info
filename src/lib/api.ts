@@ -12,7 +12,10 @@ import {
   ExternalNeighborQueryResult,
 } from "@/types/transaction";
 import axios from "axios";
-import { BlockGraphContentResponse } from "@/types/graph-types";
+import {
+  BlockGraphContentResponse,
+  TxNeighborResponse,
+} from "@/types/graph-types";
 
 export const apiClient = axios.create({
   baseURL: "/api",
@@ -200,5 +203,35 @@ export const getBlockGraphContent = async (block_number: number) => {
   console.log(`Fetching block graph content for block: ${block_number}`);
   return apiClient.get<BlockGraphContentResponse>(
     `/graph/block/${block_number}/content`
+  );
+};
+
+// --- Transaction Neighbors API ---
+export interface GetTxNeighborsParams {
+  tx_hash: string;
+  busy_threshold?: number;
+  block_window?: number;
+  base_hop2_limit?: number;
+  max_hop2_limit?: number;
+}
+
+export const getTxNeighbors = async ({
+  tx_hash,
+  busy_threshold = 1000,
+  block_window = 6,
+  base_hop2_limit = 10,
+  max_hop2_limit = 50,
+}: GetTxNeighborsParams) => {
+  console.log(`Fetching tx neighbors for hash: ${tx_hash}`);
+  return apiClient.get<TxNeighborResponse>(
+    `/graph/transaction/${tx_hash}/neighbors`,
+    {
+      params: {
+        busy_threshold,
+        block_window,
+        base_hop2_limit,
+        max_hop2_limit,
+      },
+    }
   );
 };

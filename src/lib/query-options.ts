@@ -18,6 +18,8 @@ import {
   getInternalNeighbors,
   GetInternalNeighborsParams,
   getBlockGraphContent,
+  getTxNeighbors,
+  GetTxNeighborsParams,
 } from "./api";
 
 export const searchQueryOptions = ({ query, limit }: SearchParams) => {
@@ -171,5 +173,33 @@ export const blockGraphContentQueryOptions = (block_number: number) => {
   return queryOptions({
     queryKey: ["block-graph-content", block_number],
     queryFn: () => getBlockGraphContent(block_number),
+  });
+};
+
+// --- Query Options for Transaction Neighbors ---
+export const txNeighborsQueryOptions = ({
+  tx_hash,
+  busy_threshold,
+  block_window,
+  base_hop2_limit,
+  max_hop2_limit,
+}: GetTxNeighborsParams) => {
+  return queryOptions({
+    queryKey: [
+      "tx-neighbors",
+      tx_hash,
+      busy_threshold,
+      block_window,
+      base_hop2_limit,
+      max_hop2_limit,
+    ],
+    queryFn: () =>
+      getTxNeighbors({
+        tx_hash,
+        busy_threshold,
+        block_window,
+        base_hop2_limit,
+        max_hop2_limit,
+      }),
   });
 };
