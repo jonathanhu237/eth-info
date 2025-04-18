@@ -12,11 +12,7 @@ import {
   AddressExternalTxQuery,
   AddressInternalTxQuery,
 } from "@/types/address-tx-query";
-import {
-  keepPreviousData,
-  useQuery,
-  useSuspenseQuery,
-} from "@tanstack/react-query";
+import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 
@@ -53,7 +49,6 @@ function AddressDetailsComponent() {
       page_size: pageSize, // Use local state
     }),
     enabled: selectedTxType === "external",
-    placeholderData: keepPreviousData,
   });
 
   // 3. 使用 useQuery 获取内部交易 (使用本地分页状态)
@@ -64,7 +59,6 @@ function AddressDetailsComponent() {
       page_size: pageSize, // Use local state
     }),
     enabled: selectedTxType === "internal",
-    placeholderData: keepPreviousData,
   });
 
   // 4. 根据 selectedTxType 确定当前要显示的数据和状态
@@ -90,7 +84,7 @@ function AddressDetailsComponent() {
   };
 
   return (
-    <div className="space-y-4">
+    <div key={hash} className="space-y-4">
       <AddressHeader addressInfo={addressInfo} />
       <div className="grid gap-4 grid-cols-2">
         <AddressOverview addressInfo={addressInfo} />
