@@ -10,6 +10,9 @@ import {
   getTransaction,
   GetTxInternalTxParams,
   getTxInternalTx,
+  getBlockInfo,
+  GetBlockTxParams,
+  getBlockTx,
 } from "./api";
 
 export const searchQueryOptions = ({ query, limit }: SearchParams) => {
@@ -63,5 +66,23 @@ export const txInternalTxQueryOptions = ({
   return queryOptions({
     queryKey: ["tx-internal-tx", hash, offset, limit],
     queryFn: () => getTxInternalTx({ hash, offset, limit }),
+  });
+};
+
+export const getBlockInfoQueryOptions = (block_number: number) => {
+  return queryOptions({
+    queryKey: ["block-info", block_number],
+    queryFn: () => getBlockInfo(block_number),
+  });
+};
+
+export const getBlockTxQueryOptions = ({
+  block_number,
+  offset,
+  limit,
+}: GetBlockTxParams) => {
+  return queryOptions({
+    queryKey: ["block-tx", block_number, offset, limit],
+    queryFn: () => getBlockTx({ block_number, offset, limit }),
   });
 };

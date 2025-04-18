@@ -249,8 +249,11 @@ export const SearchResultsList = ({
         });
         break;
       case "block":
-        // TODO: 添加区块页导航
-        console.log("Navigate to block page for:", value);
+        // 添加区块页导航
+        navigate({
+          to: "/block/$blockNumber",
+          params: { blockNumber: value }, // value 应该是区块号字符串
+        });
         break;
       default:
         break;

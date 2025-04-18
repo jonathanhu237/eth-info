@@ -3,6 +3,7 @@ import {
   AddressExternalTxQuery,
   AddressInternalTxQuery,
 } from "@/types/address-tx-query";
+import { BlockInfo, BlockTxQuery } from "@/types/block-info";
 import { QueryResult } from "@/types/query-result";
 import { QueryTxInternalTxRes, Transaction } from "@/types/transaction";
 import axios from "axios";
@@ -88,6 +89,29 @@ export const getTxInternalTx = async ({
   limit,
 }: GetTxInternalTxParams) => {
   return apiClient.get<QueryTxInternalTxRes>(`/transaction/${hash}/internal`, {
+    params: {
+      offset,
+      limit,
+    },
+  });
+};
+
+export const getBlockInfo = async (block_number: number) => {
+  return apiClient.get<BlockInfo>(`/block/${block_number}`);
+};
+
+export type GetBlockTxParams = {
+  block_number: number;
+  offset: number;
+  limit: number;
+};
+
+export const getBlockTx = async ({
+  block_number,
+  offset,
+  limit,
+}: GetBlockTxParams) => {
+  return apiClient.get<BlockTxQuery>(`/block/${block_number}/transactions`, {
     params: {
       offset,
       limit,
