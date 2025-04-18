@@ -106,28 +106,32 @@ function BlockDetailsComponent() {
           let nodeId: string;
           let nodeName: string;
           let nodeVal: number;
+          let nodeType: string;
 
           if (apiNode.label === "Block" && apiNode.properties.blockNumber) {
-            nodeId = `block:${apiNode.properties.blockNumber}`; // Unique ID for block
+            nodeId = `block:${apiNode.properties.blockNumber}`;
             nodeName = `Block #${apiNode.properties.blockNumber}`;
-            nodeVal = 8; // Higher value for the central block node
-            targetNodeId = nodeId; // Set the target node ID
+            nodeVal = 8;
+            nodeType = "block";
+            targetNodeId = nodeId;
           } else if (
             apiNode.label === "Address" &&
             apiNode.properties.address
           ) {
             const checksumAddr = toChecksumAddress(apiNode.properties.address);
-            nodeId = checksumAddr; // Use checksummed address as ID
+            nodeId = checksumAddr;
             nodeName = checksumAddr;
-            nodeVal = 4; // Standard value for address nodes
+            nodeVal = 4;
+            nodeType = "address";
           } else if (apiNode.label === "Miner" && apiNode.properties.address) {
             const checksumAddr = toChecksumAddress(apiNode.properties.address);
-            nodeId = checksumAddr; // Use checksummed address as ID for Miner too
-            nodeName = checksumAddr; // Display Miner address
-            nodeVal = 4; // Treat similarly to address nodes for now
+            nodeId = checksumAddr;
+            nodeName = checksumAddr;
+            nodeVal = 4;
+            nodeType = "miner";
           } else {
             console.warn("Skipping unknown or incomplete node:", apiNode);
-            return; // Skip unknown node types or nodes without necessary properties
+            return;
           }
 
           if (!nodes.has(nodeId)) {
@@ -135,7 +139,7 @@ function BlockDetailsComponent() {
               id: nodeId,
               name: nodeName,
               val: nodeVal,
-              // Color is handled by NeighborGraph
+              type: nodeType,
             });
           }
         });
@@ -178,7 +182,14 @@ function BlockDetailsComponent() {
     }
 
     return { nodes: Array.from(nodes.values()), links, targetNodeId };
-  }, [blockGraphApiData, blockInfo, blockNumber, checksumMiner]); // 添加 blockInfo, blockNumber, checksumMiner 到依赖项
+  }, [blockGraphApiData, blockInfo, blockNumber, checksumMiner]);
+
+  // --- 定义图例数据 ---
+  const blockLegendItems = [
+    { type: "block", label: "区块" },
+    { type: "address", label: "地址" },
+    { type: "miner", label: "矿工" },
+  ];
 
   // ---- Now perform checks and early returns ----
   if (isNaN(blockNumber)) {
@@ -294,7 +305,8 @@ function BlockDetailsComponent() {
                   links: blockGraphData.links,
                 }}
                 targetNodeId={blockGraphData.targetNodeId}
-                onNodeClick={handleBlockGraphNodeClick} // Use the memoized handler
+                onNodeClick={handleBlockGraphNodeClick}
+                legendItems={blockLegendItems} // 传递图例数据
               />
             )}
         </CardContent>

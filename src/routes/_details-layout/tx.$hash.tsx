@@ -109,8 +109,8 @@ function TransactionDetailsComponent() {
   // --- Transform Tx Neighbor Data for Graph ---
   const txGraphData = useMemo(() => {
     const nodes = new Map<string, GraphNode>();
-    const links = new Map<string, GraphLink>(); // Use Map for links to easily avoid duplicates
-    const targetNodeId = `tx:${hash}`; // Use a unique ID prefix for the tx node
+    const links = new Map<string, GraphLink>();
+    const targetNodeId = `tx:${hash}`; // Unique ID for the tx node
 
     // 1. Add Target Transaction Node
     if (!nodes.has(targetNodeId)) {
@@ -118,7 +118,7 @@ function TransactionDetailsComponent() {
         id: targetNodeId,
         name: `Tx: ${hash.substring(0, 8)}...`,
         val: 8, // Central node value
-        // Color handled by NeighborGraph component
+        type: "tx", // 设置类型
       });
     }
 
@@ -126,10 +126,10 @@ function TransactionDetailsComponent() {
     if (Array.isArray(txNeighborApiData) && txNeighborApiData.length > 0) {
       // Iterate over each context in the response array
       txNeighborApiData.forEach((txContext) => {
-        if (!txContext?.b_address_string) return; // Skip if context or address is missing
+        if (!txContext?.b_address_string) return;
 
         const hop1Address = toChecksumAddress(txContext.b_address_string);
-        const hop1NodeId = hop1Address; // Use address as ID for first hop node
+        const hop1NodeId = hop1Address;
 
         // 2. Add First Hop Node (b_address_string)
         if (!nodes.has(hop1NodeId)) {
@@ -137,7 +137,7 @@ function TransactionDetailsComponent() {
             id: hop1NodeId,
             name: hop1Address,
             val: 4, // 1st hop value
-            // Color handled by NeighborGraph component
+            type: "hop1", // 设置类型
           });
         }
 
@@ -154,14 +154,14 @@ function TransactionDetailsComponent() {
         // 4. Add Second Hop Nodes and Links
         if (Array.isArray(txContext.second_hop_links)) {
           txContext.second_hop_links.forEach((link) => {
-            if (!link?.neighbor_address?.address) return; // Skip if neighbor address missing
+            if (!link?.neighbor_address?.address) return;
 
             const hop2Address = toChecksumAddress(
               link.neighbor_address.address
             );
-            const hop2NodeId = hop2Address; // Use address as ID for second hop node
+            const hop2NodeId = hop2Address;
 
-            // Avoid linking node to itself or back to the target Tx (implicitly via b_address)
+            // Avoid linking node to itself or back to the target Tx
             if (hop2Address === hop1Address) return;
 
             // Add Second Hop Node
@@ -170,7 +170,7 @@ function TransactionDetailsComponent() {
                 id: hop2NodeId,
                 name: hop2Address,
                 val: 2, // 2nd hop value
-                // Color handled by NeighborGraph component
+                type: "hop2", // 设置类型
               });
             }
 
@@ -192,14 +192,19 @@ function TransactionDetailsComponent() {
       });
     }
 
-    // Pass targetNodeId separately if NeighborGraph needs it explicitly for initial focus/styling
-    // It's already included in the nodes Map
     return {
       nodes: Array.from(nodes.values()),
       links: Array.from(links.values()),
       targetNodeId,
     };
   }, [txNeighborApiData, hash]);
+
+  // --- 定义图例数据 ---
+  const txLegendItems = [
+    { type: "tx", label: "交易" },
+    { type: "hop1", label: "一跳邻居" },
+    { type: "hop2", label: "二跳邻居" },
+  ];
 
   if (!tx) {
     return <div>交易信息加载失败或不存在。</div>;
@@ -304,6 +309,7 @@ function TransactionDetailsComponent() {
                 }}
                 targetNodeId={txGraphData.targetNodeId}
                 onNodeClick={handleTxGraphNodeClick}
+                legendItems={txLegendItems} // 传递图例数据
               />
             )}
         </CardContent>

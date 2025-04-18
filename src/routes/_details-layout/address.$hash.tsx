@@ -465,7 +465,7 @@ function AddressDetailsComponent() {
       id: targetChecksum,
       name: targetChecksum,
       val: 8,
-      color: "hsl(var(--primary))",
+      type: "target", // 设置类型
     });
 
     // First Hop Nodes & Links
@@ -482,7 +482,7 @@ function AddressDetailsComponent() {
             id: neighbor,
             name: neighbor,
             val: 4,
-            // Color handled by NeighborGraph component
+            type: "hop1", // 设置类型
           });
         }
         links.push({
@@ -502,12 +502,13 @@ function AddressDetailsComponent() {
             id: hop1Address,
             name: hop1Address,
             val: 4,
-            // Color handled by NeighborGraph component
+            type: "hop1", // 设置类型 (如果缺失)
           });
+          console.warn("Hop 1 node missing unexpectedly, adding:", hop1Address);
         }
+
         hop.second_hop_links.forEach((link) => {
           const hop2Address = toChecksumAddress(link.neighbor_address.address);
-          // Avoid linking node to itself and linking back to target
           if (hop2Address === hop1Address || hop2Address === targetChecksum)
             return;
 
@@ -516,7 +517,7 @@ function AddressDetailsComponent() {
               id: hop2Address,
               name: hop2Address,
               val: 2,
-              // Color handled by NeighborGraph component
+              type: "hop2", // 设置类型
             });
           }
           links.push({
@@ -544,6 +545,13 @@ function AddressDetailsComponent() {
     externalNeighborData,
     internalNeighborData,
   ]); // Add dependencies
+
+  // --- 定义图例数据 ---
+  const addressLegendItems = [
+    { type: "target", label: "目标地址" }, // 使用 type
+    { type: "hop1", label: "一跳邻居" }, // 使用 type
+    { type: "hop2", label: "二跳邻居" }, // 使用 type
+  ];
 
   const handleGraphNodeClick = useCallback(
     (node: GraphNode) => {
@@ -685,6 +693,7 @@ function AddressDetailsComponent() {
                 graphData={graphData} // graphData is now dynamic
                 onNodeClick={handleGraphNodeClick}
                 targetNodeId={toChecksumAddress(hash)}
+                legendItems={addressLegendItems} // 传递图例数据
               />
             )}
           {/* No graph data available for selected type (after loading & no errors) */}

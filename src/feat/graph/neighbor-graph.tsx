@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect, useState } from "react";
+import { useRef, useCallback, useEffect, useState, useMemo } from "react";
 // import dynamic from 'next/dynamic'; // REMOVED
 // import { useTheme } from "next-themes"; // REMOVED
 import ForceGraph2D, {
@@ -12,7 +12,8 @@ import { formatRgb, parse, converter } from "culori"; // Import culori functions
 export interface GraphNode extends NodeObject {
   id: string;
   name: string;
-  color?: string;
+  // color?: string; // Remove color
+  type?: string; // Add type identifier
   val?: number; // Example: for node size
 }
 
@@ -24,6 +25,13 @@ export interface GraphLink extends LinkObject {
   width?: number;
 }
 
+// Define Legend Item Type
+interface LegendItem {
+  // color: string; // Remove color
+  type: string; // Use type identifier
+  label: string;
+}
+
 interface NeighborGraphProps {
   graphData: {
     nodes: GraphNode[];
@@ -33,6 +41,7 @@ interface NeighborGraphProps {
   // height: number; // REMOVED
   onNodeClick: (node: GraphNode) => void;
   targetNodeId: string; // ID of the central node
+  legendItems?: LegendItem[]; // Update legendItems type
 }
 
 // Helper function to truncate addresses
@@ -49,6 +58,7 @@ export function NeighborGraph({
   // height, // REMOVED
   onNodeClick,
   targetNodeId,
+  legendItems, // Destructure legendItems
 }: NeighborGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -112,11 +122,11 @@ export function NeighborGraph({
     };
 
     setColors({
-      primary: getRgbaColor(primaryColorStr, colors.primary), // Keep primary separate for potential future use
-      chart1: getRgbaColor(chart1ColorStr, colors.chart1), // Store chart-1
-      chart2: getRgbaColor(chart2ColorStr, colors.chart2), // Store chart-2
-      chart3: getRgbaColor(chart3ColorStr, colors.chart3), // Store chart-3
-      mutedFg: getRgbaColorWithAlpha(mutedFgColorStr, 0.5, colors.mutedFg), // Set 0.5 alpha for mutedFg
+      primary: getRgbaColor(primaryColorStr, colors.primary),
+      chart1: getRgbaColor(chart1ColorStr, colors.chart1),
+      chart2: getRgbaColor(chart2ColorStr, colors.chart2),
+      chart3: getRgbaColor(chart3ColorStr, colors.chart3),
+      mutedFg: getRgbaColorWithAlpha(mutedFgColorStr, 0.5, colors.mutedFg),
     });
 
     console.log("[NeighborGraph] Resolved Colors (RGBA):", {
@@ -127,7 +137,7 @@ export function NeighborGraph({
       mutedFg: getRgbaColorWithAlpha(mutedFgColorStr, 0.5, colors.mutedFg),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // CORRECT: Run once on mount
+  }, []);
 
   useEffect(() => {
     // setIsMounted(true); // REMOVE setting isMounted
@@ -135,7 +145,6 @@ export function NeighborGraph({
     const handleResize = (entries: ResizeObserverEntry[]) => {
       if (entries[0]) {
         const { width, height } = entries[0].contentRect;
-        // Only update if dimensions actually change and are positive
         if (
           width > 0 &&
           height > 0 &&
@@ -157,7 +166,6 @@ export function NeighborGraph({
       console.log("[NeighborGraph] containerRef.current is available.");
       currentRef = containerRef.current;
       resizeObserver.observe(currentRef);
-      // Initial measurement
       const { width, height } = currentRef.getBoundingClientRect();
       console.log("[NeighborGraph] Initial getBoundingClientRect:", {
         width,
@@ -186,88 +194,114 @@ export function NeighborGraph({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // CORRECT: Run once on mount
+  }, []);
 
   const handleNodeClick = useCallback(
     (node: NodeObject /* event: MouseEvent */) => {
       const graphNode = node as GraphNode;
       onNodeClick(graphNode);
-      // Keep node interaction simple for now
-      // fgRef.current?.centerAt(node.x, node.y, 1000);
-      // fgRef.current?.zoom(4, 1000);
     },
     [onNodeClick]
   );
 
-  // Callback when the force simulation engine stops
   const handleEngineStop = useCallback(() => {
-    fgRef.current?.zoomToFit(400, 10); // Zoom to fit all nodes with padding
+    fgRef.current?.zoomToFit(400, 10);
   }, []);
+
+  // Define a mapping from type/val to resolved color
+  const typeToColorMap = useMemo(
+    () => ({
+      // Use resolved colors from state
+      target: colors.primary,
+      tx: colors.chart1,
+      block: colors.chart1,
+      hop1: colors.chart2,
+      address: colors.chart2,
+      miner: colors.chart3,
+      hop2: colors.chart3,
+    }),
+    [colors]
+  ); // Recalculate map if colors change
+
+  // Function to get color based on type or val (fallback)
+  const getColorByType = useCallback(
+    (type?: string, val?: number, id?: string): string => {
+      // if (type && typeToColorMap[type]) {
+      // Check if type is a valid key in the map
+      if (type && type in typeToColorMap) {
+        return typeToColorMap[type as keyof typeof typeToColorMap]; // Assert type as key
+      }
+      // Fallback logic based on val
+      if (id === targetNodeId || val === 8) return colors.chart1;
+      if (val === 4) return colors.chart2;
+      if (val === 2) return colors.chart3;
+      return "#6b7280"; // Default fallback gray
+    },
+    [colors, targetNodeId, typeToColorMap]
+  );
 
   const getNodeColor = useCallback(
     (node: NodeObject) => {
       const graphNode = node as GraphNode;
-      // Determine node type based on `val` (a bit fragile, but works for now)
-      const nodeValue = graphNode.val || 0;
-      if (graphNode.id === targetNodeId || nodeValue === 8) {
-        return colors.chart1; // Target node: Use resolved chart-1 color
-      } else if (nodeValue === 4) {
-        return colors.chart2; // 1st hop: Use resolved chart-2 color
-      } else if (nodeValue === 2) {
-        return colors.chart3; // 2nd hop: Use resolved chart-3 color
-      }
-      return "#6b7280"; // Fallback gray
+      return getColorByType(graphNode.type, graphNode.val, graphNode.id);
     },
-    [targetNodeId, colors] // Depend on resolved colors
+    [getColorByType]
   );
 
-  const getLinkColor = useCallback(
-    () => {
-      // Or remove link param if truly unused
-      return colors.mutedFg; // Use pre-calculated rgba string with alpha
-    },
-    [colors] // Depend on resolved colors
-  );
+  const getLinkColor = useCallback(() => {
+    return colors.mutedFg;
+  }, [colors]);
 
-  // Define getNodeLabel again for simple labels
   const getNodeLabel = useCallback((node: NodeObject) => {
     return truncateAddress((node as GraphNode).id);
   }, []);
 
-  // Define getLinkLabel
   const getLinkLabel = useCallback((link: LinkObject) => {
     return (link as GraphLink).label || "";
   }, []);
 
   return (
-    <div ref={containerRef} className="w-full h-full">
+    <div ref={containerRef} className="w-full h-full relative">
       {dimensions.width > 0 && dimensions.height > 0 ? (
         <ForceGraph2D
           ref={fgRef}
           graphData={graphData}
-          width={dimensions.width} // Use dynamic width
-          height={dimensions.height} // Use dynamic height
+          width={dimensions.width}
+          height={dimensions.height}
           nodeId="id"
-          nodeVal={(node) => (node as GraphNode).val || 2}
-          nodeRelSize={4}
+          nodeVal="val"
           nodeLabel={getNodeLabel}
-          linkLabel={getLinkLabel} // Add linkLabel prop
-          // nodeCanvasObjectMode={() => "after"} // REMOVED
-          // nodeCanvasObject={/* ... */} // REMOVED
           nodeColor={getNodeColor}
+          linkWidth={1}
           linkColor={getLinkColor}
-          linkWidth={(link: LinkObject) => (link as GraphLink).width || 1.5} // 稍微加粗链接
+          linkLabel={getLinkLabel}
           linkDirectionalParticles={1}
           linkDirectionalParticleWidth={2}
-          linkDirectionalParticleSpeed={0.006}
+          linkDirectionalParticleSpeed={0.01}
           onNodeClick={handleNodeClick}
-          cooldownTicks={100}
           onEngineStop={handleEngineStop}
+          cooldownTicks={100}
         />
       ) : (
-        <div className="text-center text-muted-foreground p-4 text-sm">
-          Waiting for container dimensions... (Current: {dimensions.width}x
-          {dimensions.height})
+        <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+          加载图表中...
+        </div>
+      )}
+
+      {/* Add Legend Overlay */}
+      {legendItems && legendItems.length > 0 && (
+        <div className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm border border-border rounded-md p-2 text-xs text-muted-foreground shadow-md">
+          <div className="font-semibold mb-1">图例</div>
+          {legendItems.map((item, index) => (
+            <div key={index} className="flex items-center space-x-1.5 mb-0.5">
+              <span
+                className="inline-block w-2.5 h-2.5 rounded-full"
+                // Get color from map based on item.type
+                style={{ backgroundColor: getColorByType(item.type) }}
+              ></span>
+              <span>{item.label}</span>
+            </div>
+          ))}
         </div>
       )}
     </div>
