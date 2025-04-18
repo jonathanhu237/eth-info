@@ -4,7 +4,7 @@ import {
   txNeighborsQueryOptions,
 } from "@/lib/query-options";
 import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toChecksumAddress } from "@/lib/utils";
 import { ethers } from "ethers";
@@ -29,6 +29,7 @@ export const Route = createFileRoute("/_details-layout/tx/$hash")({
 
 function TransactionDetailsComponent() {
   const { hash } = Route.useParams();
+  const navigate = useNavigate();
   const { data: txData } = useSuspenseQuery(transactionQueryOptions(hash));
   const tx = txData?.data;
 
@@ -36,9 +37,18 @@ function TransactionDetailsComponent() {
   const internalTxPageSize = 10;
 
   // Define graph click handler early
-  const handleTxGraphNodeClick = useCallback(() => {
-    // No-op for now
-  }, []);
+  const handleTxGraphNodeClick = useCallback(
+    (node: GraphNode) => {
+      // Check if the clicked node is an address (id doesn't start with 'tx:')
+      if (node && node.id && !node.id.startsWith("tx:")) {
+        console.log("Navigating to address:", node.id);
+        navigate({ to: "/address/$hash", params: { hash: node.id } });
+      } else {
+        console.log("Clicked on non-address node or invalid node:", node);
+      }
+    },
+    [navigate]
+  );
 
   const internalTxQuery = useQuery({
     ...txInternalTxQueryOptions({
