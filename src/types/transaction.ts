@@ -47,3 +47,30 @@ export type TransactionInternalTx = {
   to_normalized: string;
   hash_normalized: string;
 };
+
+// --- Types for External Neighbor Graph API ---
+
+// Request Body Part
+export type ExternalNeighborInteractionContext = {
+  b_address: string; // Address of the 1st hop neighbor
+  t1_block_number: number; // Block number of the transaction between target and b_address
+};
+
+// Response Body Structure
+export type ExternalNeighborLink = {
+  transaction: {
+    block: number;
+    hash: string;
+  };
+  neighbor_address: {
+    address: string;
+  };
+};
+
+export type ExternalNeighborHop = {
+  b_address_string: string;
+  initial_tx_block: number;
+  second_hop_links: ExternalNeighborLink[];
+};
+
+export type ExternalNeighborQueryResult = ExternalNeighborHop[];

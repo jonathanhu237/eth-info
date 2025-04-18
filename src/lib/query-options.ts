@@ -13,6 +13,8 @@ import {
   getBlockInfo,
   GetBlockTxParams,
   getBlockTx,
+  getExternalNeighbors,
+  GetExternalNeighborsParams,
 } from "./api";
 
 export const searchQueryOptions = ({ query, limit }: SearchParams) => {
@@ -84,5 +86,42 @@ export const getBlockTxQueryOptions = ({
   return queryOptions({
     queryKey: ["block-tx", block_number, offset, limit],
     queryFn: () => getBlockTx({ block_number, offset, limit }),
+  });
+};
+
+// --- Query Options for External Neighbors ---
+export const externalNeighborsQueryOptions = ({
+  target_address,
+  interactions_context,
+  busy_threshold,
+  block_window,
+  base_hop2_limit,
+  max_hop2_limit,
+}: GetExternalNeighborsParams) => {
+  const contextKey = JSON.stringify(
+    interactions_context
+      .map((c) => `${c.b_address}-${c.t1_block_number}`)
+      .sort()
+  );
+
+  return queryOptions({
+    queryKey: [
+      "external-neighbors",
+      target_address,
+      contextKey,
+      busy_threshold,
+      block_window,
+      base_hop2_limit,
+      max_hop2_limit,
+    ],
+    queryFn: () =>
+      getExternalNeighbors({
+        target_address,
+        interactions_context,
+        busy_threshold,
+        block_window,
+        base_hop2_limit,
+        max_hop2_limit,
+      }),
   });
 };

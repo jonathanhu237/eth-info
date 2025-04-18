@@ -5,7 +5,12 @@ import {
 } from "@/types/address-tx-query";
 import { BlockInfo, BlockTxQuery } from "@/types/block-info";
 import { QueryResult } from "@/types/query-result";
-import { QueryTxInternalTxRes, Transaction } from "@/types/transaction";
+import {
+  QueryTxInternalTxRes,
+  Transaction,
+  ExternalNeighborInteractionContext,
+  ExternalNeighborQueryResult,
+} from "@/types/transaction";
 import axios from "axios";
 
 export const apiClient = axios.create({
@@ -117,4 +122,42 @@ export const getBlockTx = async ({
       limit,
     },
   });
+};
+
+// --- External Neighbors API ---
+export type GetExternalNeighborsParams = {
+  target_address: string;
+  interactions_context: ExternalNeighborInteractionContext[];
+  busy_threshold?: number; // 可选参数
+  block_window?: number; // 可选参数
+  base_hop2_limit?: number; // 可选参数
+  max_hop2_limit?: number; // 可选参数
+};
+
+export const getExternalNeighbors = async ({
+  target_address,
+  interactions_context,
+  busy_threshold = 1000, // 设置默认值
+  block_window = 6,
+  base_hop2_limit = 10,
+  max_hop2_limit = 50,
+}: GetExternalNeighborsParams) => {
+  // Log the exact payload being sent
+  const payload = {
+    target_address,
+    interactions_context,
+    busy_threshold,
+    block_window,
+    base_hop2_limit,
+    max_hop2_limit,
+  };
+  console.log(
+    "Frontend API Call Payload (/graph/neighbors/external):",
+    JSON.stringify(payload, null, 2)
+  ); // Log the payload
+
+  return apiClient.post<ExternalNeighborQueryResult>(
+    `/graph/neighbors/external`,
+    payload // Send the constructed payload
+  );
 };
