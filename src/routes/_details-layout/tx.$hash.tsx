@@ -171,7 +171,7 @@ function TransactionDetailsComponent() {
       console.log("Requesting Real Tx AI Summary for:", hash);
       // Adjust endpoint for transaction analysis
       eventSource = new EventSource(
-        `/api/ai/analyze/transaction/${hash.toLowerCase()}`
+        `/api/ai/analyze/transaction/${hash.toLowerCase()}?int_page=${internalTxCurrentPage}&int_limit=${internalTxPageSize}`
       );
 
       eventSource.onmessage = (event) => {
