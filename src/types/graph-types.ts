@@ -5,6 +5,7 @@ export interface BlockGraphApiNode {
   properties: {
     blockNumber?: number; // Make optional as not all nodes might have it
     address?: string; // Add optional address for Address nodes
+    minerAddress?: string; // Add optional minerAddress for Miner nodes
     // Add other potential properties if needed
   };
 }

@@ -208,44 +208,64 @@ export function NeighborGraph({
     fgRef.current?.zoomToFit(400, 10);
   }, []);
 
-  // Define a mapping from type/val to resolved color
-  const typeToColorMap = useMemo(
+  // Create a memoized map from type to resolved color for legend
+  const legendColorMap = useMemo(
     () => ({
-      // Use resolved colors from state
-      target: colors.primary,
+      target: colors.chart1,
       tx: colors.chart1,
       block: colors.chart1,
       hop1: colors.chart2,
       address: colors.chart2,
       miner: colors.chart3,
       hop2: colors.chart3,
+      default: "#6b7280", // Default fallback color
     }),
     [colors]
-  ); // Recalculate map if colors change
-
-  // Function to get color based on type or val (fallback)
-  const getColorByType = useCallback(
-    (type?: string, val?: number, id?: string): string => {
-      // if (type && typeToColorMap[type]) {
-      // Check if type is a valid key in the map
-      if (type && type in typeToColorMap) {
-        return typeToColorMap[type as keyof typeof typeToColorMap]; // Assert type as key
-      }
-      // Fallback logic based on val
-      if (id === targetNodeId || val === 8) return colors.chart1;
-      if (val === 4) return colors.chart2;
-      if (val === 2) return colors.chart3;
-      return "#6b7280"; // Default fallback gray
-    },
-    [colors, targetNodeId, typeToColorMap]
   );
 
   const getNodeColor = useCallback(
     (node: NodeObject) => {
       const graphNode = node as GraphNode;
-      return getColorByType(graphNode.type, graphNode.val, graphNode.id);
+      let nodeColor = "#6b7280"; // Default fallback gray, declare outside
+
+      // Direct mapping based on type, then fallback
+      switch (graphNode.type) {
+        case "target":
+        case "tx":
+        case "block": {
+          nodeColor = colors.chart1;
+          break;
+        }
+        case "hop1":
+        case "address": {
+          nodeColor = colors.chart2;
+          break;
+        }
+        case "miner": {
+          nodeColor = colors.chart3; // Ensure miner gets chart3
+          break;
+        }
+        case "hop2": {
+          nodeColor = colors.chart3;
+          break;
+        }
+        default: {
+          // Fallback based on val or id if type is missing
+          const nodeValue = graphNode.val || 0;
+          if (graphNode.id === targetNodeId || nodeValue === 8) {
+            nodeColor = colors.chart1;
+          } else if (nodeValue === 4) {
+            nodeColor = colors.chart2;
+          } else if (nodeValue === 2) {
+            nodeColor = colors.chart3;
+          }
+          // else nodeColor remains the default fallback gray
+          break;
+        }
+      }
+      return nodeColor;
     },
-    [getColorByType]
+    [colors, targetNodeId] // Depend on colors and targetNodeId for fallback
   );
 
   const getLinkColor = useCallback(() => {
@@ -292,16 +312,21 @@ export function NeighborGraph({
       {legendItems && legendItems.length > 0 && (
         <div className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm border border-border rounded-md p-2 text-xs text-muted-foreground shadow-md">
           <div className="font-semibold mb-1">图例</div>
-          {legendItems.map((item, index) => (
-            <div key={index} className="flex items-center space-x-1.5 mb-0.5">
-              <span
-                className="inline-block w-2.5 h-2.5 rounded-full"
-                // Get color from map based on item.type
-                style={{ backgroundColor: getColorByType(item.type) }}
-              ></span>
-              <span>{item.label}</span>
-            </div>
-          ))}
+          {legendItems.map((item, index) => {
+            // Get color directly from the memoized map
+            const legendColor =
+              legendColorMap[item.type as keyof typeof legendColorMap] ||
+              legendColorMap.default;
+            return (
+              <div key={index} className="flex items-center space-x-1.5 mb-0.5">
+                <span
+                  className="inline-block w-2.5 h-2.5 rounded-full"
+                  style={{ backgroundColor: legendColor }} // Use color from map
+                ></span>
+                <span>{item.label}</span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

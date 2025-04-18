@@ -123,8 +123,13 @@ function BlockDetailsComponent() {
             nodeName = checksumAddr;
             nodeVal = 4;
             nodeType = "address";
-          } else if (apiNode.label === "Miner" && apiNode.properties.address) {
-            const checksumAddr = toChecksumAddress(apiNode.properties.address);
+          } else if (
+            apiNode.label === "Miner" &&
+            apiNode.properties.minerAddress
+          ) {
+            const checksumAddr = toChecksumAddress(
+              apiNode.properties.minerAddress
+            );
             nodeId = checksumAddr;
             nodeName = checksumAddr;
             nodeVal = 4;
